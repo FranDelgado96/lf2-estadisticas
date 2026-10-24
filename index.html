@@ -381,7 +381,7 @@ views.calendario=function(){
 };
 function boxTable(box){
   const ids=Object.keys(box).filter(id=>played(box[id])).sort((a,b)=>n(box[a].d)-n(box[b].d));
-  const pname=id=>players.find(p=>p.id===id)?.name||"Jugadora";
+  const pname=id=>players.find(p=>p.id===id)?.name||box[id]?.name||"Jugadora";
   const mmss=m=>{const s=Math.round(m*60);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
   const T=line({});ids.forEach(id=>{const L=line(box[id]);for(const k in L)T[k]+=L[k]});
   return `<div class="scroll"><table><thead><tr><th>D</th><th class="l">Jugadora</th><th>MIN</th><th>PTS</th><th>T2</th><th>T2%</th><th>T3</th><th>T3%</th><th>TL</th><th>TL%</th><th>REB</th><th>AST</th><th>ROB</th><th>PER</th><th>TAP</th><th>FC</th><th>FR</th><th>VAL</th></tr></thead><tbody>
@@ -873,7 +873,7 @@ function mergeGames(){
   for(const id in liveApi){const L=liveApi[id], e=sched[id]; if(!e||L.status!=="FINAL"||done.has(id)||L.hs===L.as) continue;
     const box={home:{},away:{}};
     ["home","away"].forEach((side,i)=>{(L.teams?.[i]?.rows||[]).forEach(r=>{ if(!r.min) return; const pid=byFeb[String(r.id)]||("feb-x-"+r.id);
-      box[side][pid]={d:r.d,min:r.min,pts:r.pts,t2m:r.t2[0],t2a:r.t2[1],t3m:r.t3[0],t3a:r.t3[1],tlm:r.tl[0],tla:r.tl[1],ro:r.ro,rd:r.rd,ast:r.ast,rob:r.rob,per:r.per,tap:r.tap,fc:r.fc,fr:r.fr,va:r.va} })});
+      box[side][pid]={name:r.name,d:r.d,min:r.min,pts:r.pts,t2m:r.t2[0],t2a:r.t2[1],t3m:r.t3[0],t3a:r.t3[1],tlm:r.tl[0],tla:r.tl[1],ro:r.ro,rd:r.rd,ast:r.ast,rob:r.rob,per:r.per,tap:r.tap,fc:r.fc,fr:r.fr,va:r.va} })});
     prov.push({id:"live-"+id,febId:id,group:e.group,jornada:e.j,date:e.date,home:e.home,away:e.away,hs:L.hs,as:L.as,box,source:"directo",prov:true})}
   games=[...dbGames,...prov];
 }
