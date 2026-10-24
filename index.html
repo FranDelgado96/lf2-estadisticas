@@ -183,7 +183,7 @@ const FIELDS = ["min","t2m","t2a","t3m","t3a","tlm","tla","ro","rd","ast","rob",
 
 let db=null, canWrite=false, players=[], games=[], loaded={p:false,g:false}, schedule={}, actas={}, assetsApi=null, downloadsApi=null;
 const FEB_URL=id=>"https://www.feb.es/competiciones/Partido.aspx?p="+id;
-let mcpApi=null, liveDocs={}, profiles={};
+let mcpApi=null, liveApi={}, liveDocs={}, profiles={};
 const POSITIONS=["Base","Escolta","Alero","Ala-pívot","Pívot"];
 const COMP={"L.F.-2":"Liga Femenina 2","LF CHALLENGE":"LF Challenge","LF ENDESA":"Liga Femenina Endesa","LIGA EBA":"Liga EBA","SEGUNDA FEB":"Segunda FEB","TERCERA FEB":"Tercera FEB"};
 const tcase=t=>String(t||"").toLowerCase().replace(/(^|[\s.\-\/("'])(\p{L})/gu,(m,a,b)=>a+b.toUpperCase()).replace(/(?<=\s)(De|Del|La|Las|Los|El|Y|E)\b/g,w=>w.toLowerCase()).replace(/\b(Cb|Cd|Ud|Ue|Bc|Cbf|Adba|Ull|Gdko|Spar|Tgn|Gmasb|Uema|Clvdg|Ad|Cf|Sd|Ep|Ce|Sl)\b/gi,w=>w.toUpperCase());
@@ -326,7 +326,7 @@ function matchState(e){
   const g=gameFor(e);
   if(g) return {kind:"final",hs:n(g.hs),as:n(g.as),g};
   if(e.status==="final") return {kind:"final",hs:n(e.hs),as:n(e.as)};
-  const L=sessions[e.id]?.data?{...sessions[e.id].data,at:sessions[e.id].last}:liveDocs[e.id];
+  const L=sessions[e.id]?.data?{...sessions[e.id].data,at:sessions[e.id].last}:(liveApi[e.id]||liveDocs[e.id]);
   if(L&&Date.now()-n(L.at)<(L.source==="programado"?75:10)*60e3) return L.status==="FINAL"?{kind:"final",hs:n(L.hs),as:n(L.as),live:L}:{kind:"live",hs:n(L.hs),as:n(L.as),live:L};
   if(!e.date) return {kind:"tbd"};
   const start=new Date(`${e.date}T${e.time||"12:00"}:00`), now=Date.now();
@@ -342,7 +342,7 @@ function currentJornada(){
 }
 function matchCard(e){
   const st=matchState(e), nActas=(actas[e.id]?.files||[]).length;
-  const chip={final:`<span class="chip final">Final</span>`,live:`<span class="chip live"><span class="dot"></span>En juego${st.live?" · "+esc(st.live.status):""}</span>`,pending:`<span class="chip">Pendiente de resultado</span>`,upcoming:`<span class="chip">Próximo</span>`,tbd:`<span class="chip">Fecha por determinar</span>`}[st.kind];
+  const chip={final:`<span class="chip final">Final</span>`,live:`<span class="chip live"><span class="dot"></span>${st.live?esc(st.live.status):"Empezado"}</span>`,pending:`<span class="chip">Pendiente de resultado</span>`,upcoming:`<span class="chip">Próximo</span>`,tbd:`<span class="chip">Fecha por determinar</span>`}[st.kind];
   const fin=st.kind==="final"||(st.kind==="live"&&st.live), hw=fin&&st.hs>st.as, aw=fin&&st.as>st.hs;
   return `<article class="match${st.kind==="live"?" live":""}">
     <div class="top"><span>${e.date?esc(fmtDate(e.date)):"Sin fecha"}${e.time&&!fin?" · "+esc(e.time):""}</span>${chip}</div>
@@ -371,8 +371,8 @@ views.calendario=function(){
   if(ct!=="all") list=list.filter(e=>e.home===ct||e.away===ct);
   list.sort((a,b)=>a.j-b.j||a.group.localeCompare(b.group)||(a.date||"9").localeCompare(b.date||"9")||(a.time||"").localeCompare(b.time||""));
   let lastJ=0;
-  const rows=list.map(e=>{const st=matchState(e),fin=st.kind==="final";const sep=e.j!==lastJ?`<tr class="jsep"><td colspan="7">Jornada ${e.j} · ${esc(fmtDate(schedule.A.jornadaDates[e.j-1],{day:"numeric",month:"long"}))}</td></tr>`:"";lastJ=e.j;
-    return sep+`<tr><td class="l"><span class="tag ${e.group}">${e.group}</span></td><td class="l">${e.date?esc(fmtDate(e.date)):"Por determinar"}</td><td class="l">${fin?"":esc(e.time||"")}</td><td class="team" style="text-align:right">${esc(e.home)} ${crest(e.home,18)}</td><td style="text-align:center">${fin?`<button class="link" data-match="${esc(e.id)}"><b>${st.hs}–${st.as}</b></button>`:st.kind==="live"?`<span class="chip live"><span class="dot"></span>En juego</span>`:`<button class="link" data-match="${esc(e.id)}">vs</button>`}</td><td class="team">${crest(e.away,18)}${esc(e.away)}</td><td class="l muted" style="white-space:normal;min-width:160px">${esc(e.venue||"")}</td></tr>`}).join("");
+  const rows=list.map(e=>{const st=matchState(e),fin=st.kind==="final"||(st.kind==="live"&&st.live);const sep=e.j!==lastJ?`<tr class="jsep"><td colspan="7">Jornada ${e.j} · ${esc(fmtDate(schedule.A.jornadaDates[e.j-1],{day:"numeric",month:"long"}))}</td></tr>`:"";lastJ=e.j;
+    return sep+`<tr><td class="l"><span class="tag ${e.group}">${e.group}</span></td><td class="l">${e.date?esc(fmtDate(e.date)):"Por determinar"}</td><td class="l">${fin?"":esc(e.time||"")}</td><td class="team" style="text-align:right">${esc(e.home)} ${crest(e.home,18)}</td><td style="text-align:center">${fin?`<button class="link" data-match="${esc(e.id)}"><b>${st.hs}–${st.as}</b></button>${st.kind==="live"?`<br><span class="chip live" style="margin-top:2px"><span class="dot"></span>${esc(st.live.status)}</span>`:""}`:st.kind==="live"?`<span class="chip live"><span class="dot"></span>Empezado</span>`:`<button class="link" data-match="${esc(e.id)}">vs</button>`}</td><td class="team">${crest(e.away,18)}${esc(e.away)}</td><td class="l muted" style="white-space:normal;min-width:160px">${esc(e.venue||"")}</td></tr>`}).join("");
   return `<div class="controls">
     <label class="f">Grupo<select id="calGroup"><option value="all">Ambos</option><option value="A"${cg==="A"?" selected":""}>Grupo A</option><option value="B"${cg==="B"?" selected":""}>Grupo B</option></select></label>
     <label class="f">Equipo<select id="calTeam"><option value="all">Todos</option>${teamOptions(ct,cg)}</select></label></div>
@@ -491,7 +491,7 @@ function liveBox(rows){
   ${(rows||[]).filter(r=>r.min>0).map(r=>`<tr><td class="muted">${r.d}${r.st?"*":""}</td><td class="l">${esc(r.name)}</td><td>${Math.floor(r.min)}:${String(Math.round((r.min%1)*60)).padStart(2,"0")}</td><td><b>${r.pts}</b></td><td>${r.t2.join("/")}</td><td>${pc(r.t2[0],r.t2[1])}</td><td>${r.t3.join("/")}</td><td>${pc(r.t3[0],r.t3[1])}</td><td>${r.tl.join("/")}</td><td>${pc(r.tl[0],r.tl[1])}</td><td>${r.ro+r.rd}</td><td>${r.ast}</td><td>${r.rob}</td><td>${r.per}</td><td>${r.fc}</td><td>${r.fr}</td><td><b>${r.va}</b></td></tr>`).join("")}</tbody></table></div>`;
 }
 function liveBlock(e,d,when,note){
-  return `<div class="kpis"><div class="kpi"><div class="v">${d.hs} – ${d.as}</div><div class="k">${d.status==="FINAL"?"Final":"En juego · "+esc(d.status)}</div></div>${(d.quarters||[]).map(q=>`<div class="kpi"><div class="v" style="font-size:22px">${q.h}–${q.a}</div><div class="k">${q.q}º cuarto</div></div>`).join("")}</div>
+  return `<div class="kpis"><div class="kpi"><div class="v">${d.hs} – ${d.as}</div><div class="k">${d.status==="FINAL"?"Final":esc(d.status)}</div></div>${(d.quarters||[]).map(q=>`<div class="kpi"><div class="v" style="font-size:22px">${q.h}–${q.a}</div><div class="k">${q.q}º cuarto</div></div>`).join("")}</div>
   <p class="legend">Actualizado a las ${new Date(when).toLocaleTimeString("es-ES")}${note}</p>
   ${d.teams?.[0]?`<h3>${esc(e.home)}</h3>${liveBox(d.teams[0].rows)}`:""}${d.teams?.[1]?`<h3 style="margin-top:14px">${esc(e.away)}</h3>${liveBox(d.teams[1].rows)}`:""}`;
 }
@@ -862,6 +862,17 @@ async function staticMode(){
   catch(e){loaded.fail=true;render()}
 }
 const fileUrl=f=>f.url||("/_blob/"+f.id);
+/* ---------- marcadores en directo (servicio de la web pública) ---------- */
+const LIVE_URL=(location.hostname.endsWith("vercel.app")?"":"https://lf2-estadisticas.vercel.app")+"/api/live";
+async function pollLive(){
+  if(!schedule||!Object.keys(schedule).length) return;
+  const now=Date.now(), ids=schedAll().filter(e=>{ if(gameFor(e)||e.status==="final"||!e.date||!e.time) return false; const s=new Date(`${e.date}T${e.time}:00`).getTime(); return now>=s-10*60e3 && now<=s+5*3600e3 }).map(e=>e.id);
+  if(!ids.length){ if(Object.keys(liveApi).length){liveApi={};render()} return }
+  try{ const r=await fetch(LIVE_URL+"?ids="+ids.join(","),{cache:"no-store"}); if(!r.ok) return; const j=await r.json(); const fresh={}; for(const id in (j.games||{})) fresh[id]={...j.games[id],at:Date.now()}; liveApi=fresh;
+    if(!ui.form&&!lb&&!document.querySelector(".pdfview")&&["jornadas","calendario","partido","clasificacion","equipos"].includes(curView)) render();
+  }catch(e){}
+}
+setTimeout(pollLive,1500); setInterval(pollLive,30000);
 render();
 (async()=>{
   const cl=window.claude; if(!cl||!cl.use){await staticMode();return}
