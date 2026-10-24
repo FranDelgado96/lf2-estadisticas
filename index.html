@@ -185,7 +185,7 @@ const FEB_URL=id=>"https://www.feb.es/competiciones/Partido.aspx?p="+id;
 let mcpApi=null, liveDocs={}, profiles={};
 const POSITIONS=["Base","Escolta","Alero","Ala-pívot","Pívot"];
 const COMP={"L.F.-2":"Liga Femenina 2","LF CHALLENGE":"LF Challenge","LF ENDESA":"Liga Femenina Endesa","LIGA EBA":"Liga EBA","SEGUNDA FEB":"Segunda FEB","TERCERA FEB":"Tercera FEB"};
-const tcase=t=>String(t||"").toLowerCase().replace(/(^|[\s.\-\/("'])(\p{L})/gu,(m,a,b)=>a+b.toUpperCase()).replace(/\b(De|Del|La|Las|Los|El|Y|E)\b/g,w=>w.toLowerCase()).replace(/\b(Cb|Cd|Ud|Ue|Bc|Cbf|Adba|Ull|Gdko|Spar|Tgn|Gmasb|Uema|Clvdg|Ad|Cf|Sd|Ep|Ce|Sl)\b/gi,w=>w.toUpperCase());
+const tcase=t=>String(t||"").toLowerCase().replace(/(^|[\s.\-\/("'])(\p{L})/gu,(m,a,b)=>a+b.toUpperCase()).replace(/(?<=\s)(De|Del|La|Las|Los|El|Y|E)\b/g,w=>w.toLowerCase()).replace(/\b(Cb|Cd|Ud|Ue|Bc|Cbf|Adba|Ull|Gdko|Spar|Tgn|Gmasb|Uema|Clvdg|Ad|Cf|Sd|Ep|Ce|Sl)\b/gi,w=>w.toUpperCase());
 const ui = { team: TEAMS.A[0], pGroup:"all", pTeam:"all", sort:"pts", minG:1, mode:"avg", gGroup:"all", editing:null, form:null, confirmDel:null, rosterTeam: TEAMS.A[0] };
 
 const $ = s=>document.querySelector(s);
@@ -641,10 +641,12 @@ views.jugadora=function(){
   <tr><td class="l" colspan="4"><b>Promedio</b></td><td>${mmss(T.min/gp)}</td><td><b>${f1(T.pts/gp)}</b></td><td>${f1(T.reb/gp)}</td><td>${f1(T.ast/gp)}</td><td>${f1(T.fc/gp)}</td><td>${f1(T.fr/gp)}</td><td>${f1(T.rob/gp)}</td><td>${f1(T.per/gp)}</td><td>${T.t2m}/${T.t2a}</td><td><b>${pc(T.t2m,T.t2a)}</b></td><td>${T.t3m}/${T.t3a}</td><td><b>${pc(T.t3m,T.t3a)}</b></td><td>${T.tlm}/${T.tla}</td><td><b>${pc(T.tlm,T.tla)}</b></td><td><b>${f1(T.val/gp)}</b></td></tr>
   </tbody></table></div>`:`<p class="muted">Todavía no ha jugado ningún partido con acta registrada.</p>`}
   <h3 style="margin-top:18px">Trayectoria (últimas 5 temporadas)</h3>
-  ${car.length?`<div class="scroll" style="margin-top:8px"><table><thead><tr><th class="l">Temporada</th><th class="l">Competición</th><th class="l">Equipo</th></tr></thead><tbody>
-  ${car.map(c=>`<tr><td class="l">${esc(c.season)}${c.season==="26/27"?' <span class="muted">(actual)</span>':""}</td><td class="l">${esc(COMP[c.comp]||c.comp)}</td><td class="l">${esc(tcase(c.team))}</td></tr>`).join("")}
-  </tbody></table></div>`:`<p class="muted" style="margin-top:6px">La FEB no tiene registrada trayectoria en competiciones nacionales para esta jugadora.</p>`}
-  <p class="muted" style="font-size:12px;margin-top:6px">Fuentes: nacionalidad, fecha de nacimiento y trayectoria de la ficha FEB (solo competiciones nacionales FEB, no ligas autonómicas, universitarias ni del extranjero); posición${pf.heightSrc?" y altura":""} de Eurobasket${pos?" (posición indicada manualmente)":""}.</p>
+  <div class="scroll" style="margin-top:8px"><table><thead><tr><th class="l">Temporada</th><th class="l">Equipo</th><th class="l">Competición</th></tr></thead><tbody>
+  ${[26,25,24,23,22,21].map(y=>{const sn=`${y}/${y+1}`;const es=car.filter(c=>c.season===sn);
+    if(!es.length) return `<tr><td class="l">${sn}</td><td class="l muted" colspan="2">Sin datos (posiblemente categorías de formación)</td></tr>`;
+    return es.map((c,i)=>`<tr><td class="l">${i?"":sn+(y===26?' <span class="muted">(actual)</span>':"")}</td><td class="l">${esc(/[a-z]/.test(c.team)?c.team:tcase(c.team))}</td><td class="l">${esc(COMP[c.comp]||c.comp)}</td></tr>`).join("")}).join("")}
+  </tbody></table></div>
+  <p class="muted" style="font-size:12px;margin-top:6px">Fuentes: ficha FEB (nacionalidad, fecha de nacimiento y competiciones nacionales), Eurobasket (posición${pf.heightSrc?", altura":""} y último equipo fuera de la FEB), Flashscore y webs oficiales de universidades y clubes (temporadas en el extranjero y en la NCAA)${pos?". Posición indicada manualmente":""}.</p>
   </section>`;
 };
 function sortVal(p,k){
