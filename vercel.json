@@ -1,7 +1,23 @@
 {
+  "redirects": [
+    {
+      "source": "/challenge",
+      "destination": "/challenge/",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/data/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/challenge/data/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

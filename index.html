@@ -153,7 +153,8 @@ tr.jsep td{background:var(--bg);font-family:var(--display);font-weight:700;text-
       <h1>Liga Femenina <span>2</span> · 26/27</h1>
       <p>Calendario, resultados y estadísticas de las actas oficiales de la FEB. Fase regular: 26 jornadas, 3 oct 2026 – 17 abr 2027.</p>
     </div>
-    <div class="status" id="status">Cargando datos…</div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><a id="xcomp" class="link" href="https://claude.ai/artifact/QtqvZjTc6DFWWcFHP98APn" target="_top" style="font-weight:600">Liga Femenina Challenge →</a>
+    <div class="status" id="status">Cargando datos…</div></div>
   </header>
   <nav class="tabs" id="tabs">
     <a href="#clasificacion" data-v="clasificacion">Clasificación</a>
@@ -855,6 +856,7 @@ async function loadBundle(){
   staticInfo={generated:b.generated}; loaded.p=loaded.g=true; db=db||{static:true}; render();
 }
 async function staticMode(){
+  const xc=document.getElementById("xcomp"); if(xc) xc.href="challenge/";
   canWrite=false; const reg=document.querySelector('#tabs a[data-v="partidos"]'); if(reg) reg.hidden=true; if(curView==="partidos") curView="clasificacion";
   try{await loadBundle(); setInterval(()=>{if(!document.querySelector(".pdfview")&&!lb)loadBundle().catch(()=>{})},120000)}
   catch(e){loaded.fail=true;render()}

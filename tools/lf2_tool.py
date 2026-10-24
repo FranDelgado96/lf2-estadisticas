@@ -315,7 +315,7 @@ def cmd_site(a):
             '</head><body>')
     os.makedirs(a.out, exist_ok=True)
     open(os.path.join(a.out, "index.html"), "w", encoding="utf8").write(head + body + "</body></html>")
-    open(os.path.join(a.out, "vercel.json"), "w").write(json.dumps({"headers": [{"source": "/data/(.*)", "headers": [{"key": "Cache-Control", "value": "no-store"}]}]}, indent=2))
+    open(os.path.join(a.out, "vercel.json"), "w").write(json.dumps({"redirects": [{"source": "/challenge", "destination": "/challenge/", "permanent": False}], "headers": [{"source": "/data/(.*)", "headers": [{"key": "Cache-Control", "value": "no-store"}]}, {"source": "/challenge/data/(.*)", "headers": [{"key": "Cache-Control", "value": "no-store"}]}]}, indent=2))
     print(os.path.join(a.out, "index.html"))
 
 
