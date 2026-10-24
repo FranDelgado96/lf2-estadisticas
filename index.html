@@ -67,6 +67,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .empty b{display:block;color:var(--ink);font-family:var(--display);font-size:20px;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:12px 0 18px}
 .kpi{border-left:3px solid var(--accent);padding:4px 10px}
+.bio{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px 16px;margin:10px 0 4px;padding:10px 12px;background:var(--soft,rgba(127,127,127,.08));border-radius:8px}
+.bio>div{display:flex;flex-direction:column;gap:2px}.bio .k{font-size:11px;text-transform:uppercase;letter-spacing:.04em;opacity:.7}.bio .v{font-weight:600}.possel{font:inherit;padding:2px 4px}
 .kpi .v{font-family:var(--display);font-weight:700;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
 .kpi .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 .games{display:flex;flex-direction:column;gap:8px}
@@ -175,7 +177,10 @@ const FIELDS = ["min","t2m","t2a","t3m","t3a","tlm","tla","ro","rd","ast","rob",
 
 let db=null, canWrite=false, players=[], games=[], loaded={p:false,g:false}, schedule={}, actas={}, assetsApi=null, downloadsApi=null;
 const FEB_URL=id=>"https://www.feb.es/competiciones/Partido.aspx?p="+id;
-let mcpApi=null, liveDocs={};
+let mcpApi=null, liveDocs={}, profiles={};
+const POSITIONS=["Base","Escolta","Alero","Ala-pívot","Pívot"];
+const COMP={"L.F.-2":"Liga Femenina 2","LF CHALLENGE":"LF Challenge","LF ENDESA":"Liga Femenina Endesa","LIGA EBA":"Liga EBA","SEGUNDA FEB":"Segunda FEB","TERCERA FEB":"Tercera FEB"};
+const tcase=t=>String(t||"").toLowerCase().replace(/(^|[\s.\-\/("'])(\p{L})/gu,(m,a,b)=>a+b.toUpperCase()).replace(/\b(De|Del|La|Las|Los|El|Y|E)\b/g,w=>w.toLowerCase()).replace(/\b(Cb|Cd|Ud|Ue|Bc|Cbf|Adba|Ull|Gdko|Spar|Tgn|Gmasb|Uema|Clvdg|Ad|Cf|Sd|Ep|Ce|Sl)\b/gi,w=>w.toUpperCase());
 const ui = { team: TEAMS.A[0], pGroup:"all", pTeam:"all", sort:"pts", minG:1, mode:"avg", gGroup:"all", editing:null, form:null, confirmDel:null, rosterTeam: TEAMS.A[0] };
 
 const $ = s=>document.querySelector(s);
@@ -600,9 +605,18 @@ views.jugadora=function(){
   if(!p) return `<div class="empty"><b>Elige una jugadora</b>Pulsa su nombre en Jugadoras o en la ficha de un equipo.</div>`;
   const log=[];
   [...games].sort(byDate).forEach(g=>["home","away"].forEach(side=>{const b=sideBox(g,side)[p.id]; if(b&&played(b)){const own=side==="home"?g.home:g.away, rival=side==="home"?g.away:g.home, os=side==="home"?n(g.hs):n(g.as), rs=side==="home"?n(g.as):n(g.hs); log.push({g,rival,local:side==="home",os,rs,L:line(b)})}}));
+  const raw=players.find(x=>x.id===p.id)||{}, pf=profiles[p.id]||{}, pos=raw.pos||"";
+  const car=[...(pf.career||[])].sort((a,b)=>b.season.localeCompare(a.season));
+  const posHtml=canWrite&&!(db&&db.static)?`<select data-setpos="${esc(p.id)}" class="possel"><option value="">${pos?"— Sin indicar —":"No publicada por la FEB"}</option>${POSITIONS.map(x=>`<option${x===pos?" selected":""}>${x}</option>`).join("")}</select>`:(pos?esc(pos):`<span class="muted">No publicada por la FEB</span>`);
   const T=p.tot,gp=p.gp||1,mmss=m=>{const s=Math.round(m*60);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
   return `<div class="controls"><button data-back>← Volver a Jugadoras</button></div>
   <section class="panel"><div class="panel-head"><h2>${p.dorsal!==""&&p.dorsal!=null?`<span class="muted">${esc(p.dorsal)}</span> `:""}${esc(p.name)}</h2><button class="link" data-go-team="${esc(p.team)}">${esc(p.team)}</button></div>
+  <div class="bio">
+    <div><span class="k">Posición</span><span class="v">${posHtml}</span></div>
+    <div><span class="k">Nacionalidad</span><span class="v">${pf.nat?esc(pf.nat):'<span class="muted">–</span>'}</span></div>
+    <div><span class="k">Altura</span><span class="v">${pf.height?(pf.height/100).toFixed(2).replace(".",",")+" m":'<span class="muted">No publicada</span>'}</span></div>
+    <div><span class="k">Equipo actual</span><span class="v">${esc(p.team)}</span></div>
+  </div>
   <div class="kpis">
     <div class="kpi"><div class="v">${p.gp}</div><div class="k">Partidos</div></div>
     <div class="kpi"><div class="v">${p.gp?f1(T.min/gp):"–"}</div><div class="k">Minutos</div></div>
@@ -618,6 +632,11 @@ views.jugadora=function(){
   ${log.map(r=>{const L=r.L,d=r.g.date?new Date(r.g.date+"T12:00").toLocaleDateString("es-ES",{day:"numeric",month:"short"}):"";return `<tr><td class="l">${esc(r.g.jornada)}</td><td class="l">${d}</td><td class="l">${r.local?"vs":"en"} ${esc(r.rival)}</td><td class="${r.os>r.rs?"w":"lo"}">${r.os>r.rs?"G":"P"} ${r.os}-${r.rs}</td><td>${mmss(L.min)}</td><td><b>${L.pts}</b></td><td>${L.reb}</td><td>${L.ast}</td><td>${L.fc}</td><td>${L.fr}</td><td>${L.rob}</td><td>${L.per}</td><td>${L.t2m}/${L.t2a}</td><td>${pc(L.t2m,L.t2a)}</td><td>${L.t3m}/${L.t3a}</td><td>${pc(L.t3m,L.t3a)}</td><td>${L.tlm}/${L.tla}</td><td>${pc(L.tlm,L.tla)}</td><td><b>${L.val}</b></td></tr>`}).join("")}
   <tr><td class="l" colspan="4"><b>Promedio</b></td><td>${mmss(T.min/gp)}</td><td><b>${f1(T.pts/gp)}</b></td><td>${f1(T.reb/gp)}</td><td>${f1(T.ast/gp)}</td><td>${f1(T.fc/gp)}</td><td>${f1(T.fr/gp)}</td><td>${f1(T.rob/gp)}</td><td>${f1(T.per/gp)}</td><td>${T.t2m}/${T.t2a}</td><td><b>${pc(T.t2m,T.t2a)}</b></td><td>${T.t3m}/${T.t3a}</td><td><b>${pc(T.t3m,T.t3a)}</b></td><td>${T.tlm}/${T.tla}</td><td><b>${pc(T.tlm,T.tla)}</b></td><td><b>${f1(T.val/gp)}</b></td></tr>
   </tbody></table></div>`:`<p class="muted">Todavía no ha jugado ningún partido con acta registrada.</p>`}
+  <h3 style="margin-top:18px">Trayectoria (últimas 5 temporadas)</h3>
+  ${car.length?`<div class="scroll" style="margin-top:8px"><table><thead><tr><th class="l">Temporada</th><th class="l">Competición</th><th class="l">Equipo</th></tr></thead><tbody>
+  ${car.map(c=>`<tr><td class="l">${esc(c.season)}${c.season==="26/27"?' <span class="muted">(actual)</span>':""}</td><td class="l">${esc(COMP[c.comp]||c.comp)}</td><td class="l">${esc(tcase(c.team))}</td></tr>`).join("")}
+  </tbody></table></div>`:`<p class="muted" style="margin-top:6px">La FEB no tiene registrada trayectoria en competiciones nacionales para esta jugadora.</p>`}
+  <p class="muted" style="font-size:12px;margin-top:6px">Fuente: ficha de la jugadora en feb.es. Solo incluye competiciones nacionales FEB (no ligas autonómicas, universitarias ni del extranjero).</p>
   </section>`;
 };
 function sortVal(p,k){
@@ -729,6 +748,7 @@ document.addEventListener("change",e=>{
   else if(t.id==="calGroup"){ui.calGroup=t.value;ui.calTeam="all";render()}
   else if(t.id==="calTeam"){ui.calTeam=t.value;render()}
   else if(t.id==="fileActa"){uploadActas([...t.files])}
+  else if(t.dataset&&t.dataset.setpos){const id=t.dataset.setpos,p=players.find(x=>x.id===id);if(p){const {id:_,...doc}=p;doc.pos=t.value;db.doc("players/"+id).set(doc).then(()=>toast(t.value?`Posición guardada: ${t.value}`:"Posición borrada")).catch(err=>toast("No se pudo guardar: "+err.message))}}
   else if(t.id==="fGroup"){readForm();const F=ui.form;F.home=TEAMS[F.group][0];F.away=TEAMS[F.group][1];F.box={home:{},away:{}};F.hs=F.as="";render()}
   else if(t.id==="fHome"||t.id==="fAway"){readForm();ui.form.box[t.id==="fHome"?"home":"away"]={};render()}
 });
@@ -810,6 +830,7 @@ async function loadBundle(){
   const r=await fetch("data/bundle.json?t="+Date.now(),{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status);
   const b=await r.json();
   players=b.players||[]; games=b.games||[]; schedule=b.schedule||{}; actas=b.actas||{}; liveDocs=b.live||{};
+  if(!Object.keys(profiles).length){try{const q=await fetch("data/profiles.json",{cache:"no-store"}); if(q.ok) profiles=(await q.json()).byId||{}}catch(e){}}
   staticInfo={generated:b.generated}; loaded.p=loaded.g=true; db=db||{static:true}; render();
 }
 async function staticMode(){
@@ -827,6 +848,7 @@ render();
   const cw=user?await user.can("data.write"):null; canWrite=cw!==false;
   const err=e=>{toast("Error de datos: "+e.message)};
   db.collection("players").onSnapshot(s=>{players=s.docs.map(d=>({id:d.id,...d.data()}));loaded.p=true;if(!(ui.form&&document.activeElement&&document.activeElement.dataset.side))render()},err);
+  db.collection("profiles").onSnapshot(s=>{const d=s.docs.find(x=>x.id==="all");profiles=d?(d.data().byId||{}):{};if(curView==="jugadora")render()},()=>{});
   db.collection("games").onSnapshot(s=>{games=s.docs.map(d=>({id:d.id,...d.data()}));loaded.g=true;if(!ui.form)render()},err);
   db.collection("schedule").onSnapshot(s=>{schedule={};s.docs.forEach(d=>schedule[d.id]=d.data());if(!ui.form)render();if(mcpApi&&canWrite&&autoTimer)autoTick()},err);
   db.collection("actas").onSnapshot(s=>{actas={};s.docs.forEach(d=>actas[d.id]=d.data());if(!ui.form)render()},err);
