@@ -499,7 +499,7 @@ function livePanel(e,st){
   }
   const canStart=!sess&&st.kind!=="tbd"&&!st.g&&mcpApi;
   return `<section style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px"><div class="panel-head"><h3>Directo en esta página</h3>${canStart?`<button class="primary" data-startlive="${esc(e.id)}">Seguir el directo aquí</button>`:""}</div>
-  ${body||`<p class="legend">${mcpApi?(autoLive&&!autoBlocked?"Con el directo automático activado, este partido empieza a seguirse solo cinco minutos antes de su hora de inicio.":"Abre el partido de la FEB en el navegador de la app de Claude y trae aquí el marcador, los cuartos y la estadística de cada jugadora cada 30 segundos."):"El marcador en directo aparece aquí solo cuando el partido se está siguiendo desde la app de escritorio de Claude. Mientras tanto, usa el botón Directo FEB."}</p>`}</section>`;
+  ${body||`<p class="legend">${staticInfo?"Durante los partidos, el marcador y las estadísticas se actualizan aquí automáticamente cada hora. Para seguirlo minuto a minuto, usa el botón Directo FEB.":mcpApi?(autoLive&&!autoBlocked?"Con el directo automático activado, este partido empieza a seguirse solo cinco minutos antes de su hora de inicio.":"Abre el partido de la FEB en el navegador de la app de Claude y trae aquí el marcador, los cuartos y la estadística de cada jugadora cada 30 segundos."):"El marcador en directo aparece aquí solo cuando el partido se está siguiendo desde la app de escritorio de Claude. Mientras tanto, usa el botón Directo FEB."}</p>`}</section>`;
 }
 async function saveLive(id,quiet=false){
   const e=schedAll().find(x=>x.id===id), d=sessions[id]?.data; if(!e||!d||!canWrite) return;
@@ -813,7 +813,7 @@ async function loadBundle(){
   staticInfo={generated:b.generated}; loaded.p=loaded.g=true; db=db||{static:true}; render();
 }
 async function staticMode(){
-  canWrite=false;
+  canWrite=false; const reg=document.querySelector('#tabs a[data-v="partidos"]'); if(reg) reg.hidden=true; if(curView==="partidos") curView="clasificacion";
   try{await loadBundle(); setInterval(()=>{if(!document.querySelector(".pdfview")&&!lb)loadBundle().catch(()=>{})},120000)}
   catch(e){loaded.fail=true;render()}
 }
