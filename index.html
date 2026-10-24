@@ -181,7 +181,7 @@ const GROUP_OF = {}; for (const g in TEAMS) TEAMS[g].forEach(t=>GROUP_OF[t]=g);
 const ALL_TEAMS = [...TEAMS.A,...TEAMS.B];
 const FIELDS = ["min","t2m","t2a","t3m","t3a","tlm","tla","ro","rd","ast","rob","tap","per","fc","fr"];
 
-let db=null, canWrite=false, players=[], games=[], loaded={p:false,g:false}, schedule={}, actas={}, assetsApi=null, downloadsApi=null;
+let db=null, canWrite=false, players=[], games=[], dbGames=[], loaded={p:false,g:false}, schedule={}, actas={}, assetsApi=null, downloadsApi=null;
 const FEB_URL=id=>"https://www.feb.es/competiciones/Partido.aspx?p="+id;
 let mcpApi=null, liveApi={}, liveDocs={}, profiles={};
 const POSITIONS=["Base","Escolta","Alero","Ala-pívot","Pívot"];
@@ -299,7 +299,7 @@ jugadoras(){
 },
 partidos(){
   if(ui.form) return gameForm();
-  let list=[...games].sort(byDate).reverse();
+  let list=games.filter(g=>!g.prov).sort(byDate).reverse();
   if(ui.gGroup!=="all") list=list.filter(g=>g.group===ui.gGroup);
   return `<div class="controls">
     <label class="f">Grupo<select id="gGroup"><option value="all">Todos</option><option value="A"${ui.gGroup==="A"?" selected":""}>Grupo A</option><option value="B"${ui.gGroup==="B"?" selected":""}>Grupo B</option></select></label>
@@ -342,7 +342,7 @@ function currentJornada(){
 }
 function matchCard(e){
   const st=matchState(e), nActas=(actas[e.id]?.files||[]).length;
-  const chip={final:`<span class="chip final">Final</span>`,live:`<span class="chip live"><span class="dot"></span>${st.live?esc(st.live.status):"Empezado"}</span>`,pending:`<span class="chip">Pendiente de resultado</span>`,upcoming:`<span class="chip">Próximo</span>`,tbd:`<span class="chip">Fecha por determinar</span>`}[st.kind];
+  const chip={final:`<span class="chip final">Final${st.g?.prov?" · acta oficial en camino":""}</span>`,live:`<span class="chip live"><span class="dot"></span>${st.live?esc(st.live.status):"Empezado"}</span>`,pending:`<span class="chip">Pendiente de resultado</span>`,upcoming:`<span class="chip">Próximo</span>`,tbd:`<span class="chip">Fecha por determinar</span>`}[st.kind];
   const fin=st.kind==="final"||(st.kind==="live"&&st.live), hw=fin&&st.hs>st.as, aw=fin&&st.as>st.hs;
   return `<article class="match${st.kind==="live"?" live":""}">
     <div class="top"><span>${e.date?esc(fmtDate(e.date)):"Sin fecha"}${e.time&&!fin?" · "+esc(e.time):""}</span>${chip}</div>
@@ -851,7 +851,7 @@ let staticInfo=null;
 async function loadBundle(){
   const r=await fetch("data/bundle.json?t="+Date.now(),{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status);
   const b=await r.json();
-  players=b.players||[]; games=b.games||[]; schedule=b.schedule||{}; actas=b.actas||{}; liveDocs=b.live||{};
+  players=b.players||[]; dbGames=b.games||[]; mergeGames(); schedule=b.schedule||{}; actas=b.actas||{}; liveDocs=b.live||{};
   if(!Object.keys(profiles).length){try{const q=await fetch("data/profiles.json",{cache:"no-store"}); if(q.ok) profiles=(await q.json()).byId||{}}catch(e){}}
   staticInfo={generated:b.generated}; loaded.p=loaded.g=true; db=db||{static:true}; render();
 }
@@ -864,11 +864,24 @@ async function staticMode(){
 const fileUrl=f=>f.url||("/_blob/"+f.id);
 /* ---------- marcadores en directo (servicio de la web pública) ---------- */
 const LIVE_URL=(location.hostname.endsWith("vercel.app")?"":"https://lf2-estadisticas.vercel.app")+"/api/live";
+/* partidos terminados según el directo de la FEB: cuentan ya en resultados, clasificación y estadísticas hasta que se carga el acta oficial */
+function mergeGames(){
+  const done=new Set(dbGames.map(g=>g.febId).filter(Boolean)), byFeb={};
+  for(const pid in profiles){const f=profiles[pid]?.febId; if(f) byFeb[String(f)]=pid}
+  const sched={}; schedAll().forEach(e=>sched[e.id]=e);
+  const prov=[];
+  for(const id in liveApi){const L=liveApi[id], e=sched[id]; if(!e||L.status!=="FINAL"||done.has(id)||L.hs===L.as) continue;
+    const box={home:{},away:{}};
+    ["home","away"].forEach((side,i)=>{(L.teams?.[i]?.rows||[]).forEach(r=>{ if(!r.min) return; const pid=byFeb[String(r.id)]||("feb-x-"+r.id);
+      box[side][pid]={d:r.d,min:r.min,pts:r.pts,t2m:r.t2[0],t2a:r.t2[1],t3m:r.t3[0],t3a:r.t3[1],tlm:r.tl[0],tla:r.tl[1],ro:r.ro,rd:r.rd,ast:r.ast,rob:r.rob,per:r.per,tap:r.tap,fc:r.fc,fr:r.fr,va:r.va} })});
+    prov.push({id:"live-"+id,febId:id,group:e.group,jornada:e.j,date:e.date,home:e.home,away:e.away,hs:L.hs,as:L.as,box,source:"directo",prov:true})}
+  games=[...dbGames,...prov];
+}
 async function pollLive(){
   if(!schedule||!Object.keys(schedule).length) return;
-  const now=Date.now(), ids=schedAll().filter(e=>{ if(gameFor(e)||e.status==="final"||!e.date||!e.time) return false; const s=new Date(`${e.date}T${e.time}:00`).getTime(); return now>=s-10*60e3 && now<=s+5*3600e3 }).map(e=>e.id);
-  if(!ids.length){ if(Object.keys(liveApi).length){liveApi={};render()} return }
-  try{ const r=await fetch(LIVE_URL+"?ids="+ids.join(","),{cache:"no-store"}); if(!r.ok) return; const j=await r.json(); const fresh={}; for(const id in (j.games||{})) fresh[id]={...j.games[id],at:Date.now()}; liveApi=fresh;
+  const now=Date.now(), ids=schedAll().filter(e=>{ if(gameFor(e)||e.status==="final"||!e.date||!e.time) return false; const s=new Date(`${e.date}T${e.time}:00`).getTime(); return now>=s-10*60e3 && now<=s+14*3600e3 }).map(e=>e.id);
+  if(!ids.length){ if(Object.keys(liveApi).length){liveApi={};mergeGames();render()} return }
+  try{ const r=await fetch(LIVE_URL+"?ids="+ids.join(","),{cache:"no-store"}); if(!r.ok) return; const j=await r.json(); const fresh={}; for(const id in (j.games||{})) fresh[id]={...j.games[id],at:Date.now()}; liveApi=fresh; mergeGames();
     if(!ui.form&&!lb&&!document.querySelector(".pdfview")&&["jornadas","calendario","partido","clasificacion","equipos"].includes(curView)) render();
   }catch(e){}
 }
@@ -882,8 +895,8 @@ render();
   const cw=user?await user.can("data.write"):null; canWrite=cw!==false;
   const err=e=>{toast("Error de datos: "+e.message)};
   db.collection("players").onSnapshot(s=>{players=s.docs.map(d=>({id:d.id,...d.data()}));loaded.p=true;if(!(ui.form&&document.activeElement&&document.activeElement.dataset.side))render()},err);
-  db.collection("profiles").onSnapshot(s=>{const d=s.docs.find(x=>x.id==="all");profiles=d?(d.data().byId||{}):{};if(curView==="jugadora")render()},()=>{});
-  db.collection("games").onSnapshot(s=>{games=s.docs.map(d=>({id:d.id,...d.data()}));loaded.g=true;if(!ui.form)render()},err);
+  db.collection("profiles").onSnapshot(s=>{const d=s.docs.find(x=>x.id==="all");profiles=d?(d.data().byId||{}):{};mergeGames();if(curView==="jugadora")render()},()=>{});
+  db.collection("games").onSnapshot(s=>{dbGames=s.docs.map(d=>({id:d.id,...d.data()}));mergeGames();loaded.g=true;if(!ui.form)render()},err);
   db.collection("schedule").onSnapshot(s=>{schedule={};s.docs.forEach(d=>schedule[d.id]=d.data());if(!ui.form)render();if(mcpApi&&canWrite&&autoTimer)autoTick()},err);
   db.collection("actas").onSnapshot(s=>{actas={};s.docs.forEach(d=>actas[d.id]=d.data());if(!ui.form)render()},err);
   cl.use("assets").then(a=>{assetsApi=a;if(curView==="partido")render()});
