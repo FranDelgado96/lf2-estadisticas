@@ -67,6 +67,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .empty b{display:block;color:var(--ink);font-family:var(--display);font-size:20px;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:12px 0 18px}
 .kpi{border-left:3px solid var(--accent);padding:4px 10px}
+.crest{display:inline-block;vertical-align:middle;object-fit:contain;flex:none;margin-right:6px}.crest.ini{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;line-height:1}
+.crest-lg{margin-right:10px}
 .bio{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px 16px;margin:10px 0 4px;padding:10px 12px;background:var(--soft,rgba(127,127,127,.08));border-radius:8px}
 .bio>div{display:flex;flex-direction:column;gap:2px}.bio .k{font-size:11px;text-transform:uppercase;letter-spacing:.04em;opacity:.7}.bio .v{font-weight:600}.possel{font:inherit;padding:2px 4px}
 .kpi .v{font-family:var(--display);font-weight:700;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
@@ -171,6 +173,9 @@ const TEAMS = {
   A:["Aceites Abril ADBA Sanfer","CB Isla Bonita Sano Sano Catering","CB Las Rozas","CB Pozuelo","Cesur Distrito Olímpico","DPES-Sumialki CB Ciudad de Móstoles","El Cochinillo Segoviano","Grupo Interbus Alcobendas","Hierros Díaz Extremadura Miralvalle","Magec Tías Lanzarote CLVDG","Mariscos Antón Cortegada","Sernova Renovables Real Canoe","Siroko Gijón Basketball","SPAR Gran Canaria"],
   B:["Baloncesto Claret Benimaclet","Basket Almeda","Dishelec 65 Viladecans","GEiEG Pacisa","Horbisa Spirit Ausarta Barakaldo","Ibaizabal","Lucentum Alicante","Manresa CBF","Romakuruma UE Mataró","Segle XXI","Smartlog Ointxe","Stadium Casablanca","TGN Bàsquet","Xerez Club Deportivo"]
 };
+const TEAM_ID = {"CB Pozuelo": 1008863, "Ibaizabal": 1008861, "TGN Bàsquet": 1008923, "Lucentum Alicante": 1008684, "Mariscos Antón Cortegada": 1008974, "CB Las Rozas": 1009132, "Smartlog Ointxe": 1008896, "Cesur Distrito Olímpico": 1008994, "Manresa CBF": 1008862, "Horbisa Spirit Ausarta Barakaldo": 1008415, "Xerez Club Deportivo": 1009104, "El Cochinillo Segoviano": 1008644, "Siroko Gijón Basketball": 1008805, "GEiEG Pacisa": 1008849, "Magec Tías Lanzarote CLVDG": 1008709, "Hierros Díaz Extremadura Miralvalle": 1008973, "Basket Almeda": 1008887, "Aceites Abril ADBA Sanfer": 1008791, "Grupo Interbus Alcobendas": 1008995, "DPES-Sumialki CB Ciudad de Móstoles": 1008893, "Segle XXI": 1008892, "Baloncesto Claret Benimaclet": 1008939, "SPAR Gran Canaria": 1008710, "Stadium Casablanca": 1009096, "Sernova Renovables Real Canoe": 1008864, "CB Isla Bonita Sano Sano Catering": 1008779, "Dishelec 65 Viladecans": 1008938, "Romakuruma UE Mataró": 1008949};
+const crestInit=t=>String(t).split(/\s+/).filter(w=>/^[A-ZÁÉÍÓÚÑ]/.test(w)&&!/^(CB|CD|UE|CBF|SL)$/.test(w)).slice(0,2).map(w=>w[0]).join("")||String(t)[0];
+function crest(t,sz=22){const id=TEAM_ID[t];const ini=`<span class="crest ini" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz*.42)}px" aria-hidden="true">${esc(crestInit(t))}</span>`;return id?`<img class="crest" src="https://imagenes.feb.es/Imagen.aspx?i=${id}&ti=1" width="${sz}" height="${sz}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML=this.dataset.f" data-f='${ini.replace(/'/g,"&#39;")}'>`:ini}
 const GROUP_OF = {}; for (const g in TEAMS) TEAMS[g].forEach(t=>GROUP_OF[t]=g);
 const ALL_TEAMS = [...TEAMS.A,...TEAMS.B];
 const FIELDS = ["min","t2m","t2a","t3m","t3a","tlm","tla","ro","rd","ast","rob","tap","per","fc","fr"];
@@ -243,7 +248,7 @@ clasificacion(){
     const rows=standings(g);
     return `<section class="panel"><div class="panel-head"><h2>Grupo ${g}</h2><span class="tag ${g}">${TEAMS[g].length} equipos</span></div>
     <div class="scroll"><table><thead><tr><th class="pos">#</th><th class="l">Equipo</th><th>PJ</th><th>G</th><th>P</th><th>PF</th><th>PC</th><th>Dif</th><th>Pts</th></tr></thead><tbody>
-    ${rows.map((r,i)=>`<tr class="${i<4?"po":""}"><td class="pos">${i+1}</td><td class="team"><button class="link" data-go-team="${esc(r.team)}">${esc(r.team)}</button></td><td>${r.pj}</td><td class="w">${r.w}</td><td class="lo">${r.l}</td><td>${r.pf}</td><td>${r.pc}</td><td>${r.dif>0?"+":""}${r.dif}</td><td><b>${r.pts}</b></td></tr>`).join("")}
+    ${rows.map((r,i)=>`<tr class="${i<4?"po":""}"><td class="pos">${i+1}</td><td class="team"><button class="link" data-go-team="${esc(r.team)}">${crest(r.team,20)}${esc(r.team)}</button></td><td>${r.pj}</td><td class="w">${r.w}</td><td class="lo">${r.l}</td><td>${r.pf}</td><td>${r.pc}</td><td>${r.dif>0?"+":""}${r.dif}</td><td><b>${r.pts}</b></td></tr>`).join("")}
     </tbody></table></div></section>`}).join("")}</div>
   <p class="legend">Victoria 2 puntos, derrota 1. Desempate simplificado: puntos, victorias, diferencia y puntos a favor (no aplica el average particular de la FEB). En naranja, los cuatro primeros de cada grupo: los ocho equipos que irían a playoffs de ascenso a LF Challenge.</p>`;
 },
@@ -253,7 +258,7 @@ equipos(){
   const bg=t.boxGames||1, B=t.box;
   const teamGames=games.filter(x=>x.home===ui.team||x.away===ui.team).sort(byDate);
   return `<div class="controls"><label class="f">Equipo<select id="selTeam">${teamOptions(ui.team)}</select></label></div>
-  <section class="panel"><div class="panel-head"><h2>${esc(ui.team)}</h2><span class="tag ${g}">Grupo ${g}</span></div>
+  <section class="panel"><div class="panel-head"><h2 style="display:flex;align-items:center">${crest(ui.team,48)}${esc(ui.team)}</h2><span class="tag ${g}">Grupo ${g}</span></div>
   <div class="kpis">
     <div class="kpi"><div class="v">${t.w}–${t.l}</div><div class="k">Balance</div></div>
     <div class="kpi"><div class="v">${t.gp?f1(t.pf/t.gp):"–"}</div><div class="k">Puntos a favor</div></div>
@@ -340,7 +345,7 @@ function matchCard(e){
   const fin=st.kind==="final"||(st.kind==="live"&&st.live), hw=fin&&st.hs>st.as, aw=fin&&st.as>st.hs;
   return `<article class="match${st.kind==="live"?" live":""}">
     <div class="top"><span>${e.date?esc(fmtDate(e.date)):"Sin fecha"}${e.time&&!fin?" · "+esc(e.time):""}</span>${chip}</div>
-    <div class="sc"><span class="${hw?"won":""}">${esc(e.home)}</span><b>${fin?st.hs:""}</b><span class="${aw?"won":""}">${esc(e.away)}</span><b>${fin?st.as:""}</b></div>
+    <div class="sc"><span class="${hw?"won":""}">${crest(e.home,20)}${esc(e.home)}</span><b>${fin?st.hs:""}</b><span class="${aw?"won":""}">${crest(e.away,20)}${esc(e.away)}</span><b>${fin?st.as:""}</b></div>
     <div class="venue">${esc(e.venue||"")}</div>
     <div class="acts">
       ${st.kind==="live"?`<a class="btn live" href="${FEB_URL(e.id)}" target="_blank" rel="noopener">Seguir en directo</a>`:fin?`<a class="btn" href="${FEB_URL(e.id)}" target="_blank" rel="noopener">Acta oficial FEB</a>`:st.kind!=="tbd"?`<a class="btn" href="${FEB_URL(e.id)}" target="_blank" rel="noopener">Directo FEB</a>`:""}
@@ -366,7 +371,7 @@ views.calendario=function(){
   list.sort((a,b)=>a.j-b.j||a.group.localeCompare(b.group)||(a.date||"9").localeCompare(b.date||"9")||(a.time||"").localeCompare(b.time||""));
   let lastJ=0;
   const rows=list.map(e=>{const st=matchState(e),fin=st.kind==="final";const sep=e.j!==lastJ?`<tr class="jsep"><td colspan="7">Jornada ${e.j} · ${esc(fmtDate(schedule.A.jornadaDates[e.j-1],{day:"numeric",month:"long"}))}</td></tr>`:"";lastJ=e.j;
-    return sep+`<tr><td class="l"><span class="tag ${e.group}">${e.group}</span></td><td class="l">${e.date?esc(fmtDate(e.date)):"Por determinar"}</td><td class="l">${fin?"":esc(e.time||"")}</td><td class="team" style="text-align:right">${esc(e.home)}</td><td style="text-align:center">${fin?`<button class="link" data-match="${esc(e.id)}"><b>${st.hs}–${st.as}</b></button>`:st.kind==="live"?`<span class="chip live"><span class="dot"></span>En juego</span>`:`<button class="link" data-match="${esc(e.id)}">vs</button>`}</td><td class="team">${esc(e.away)}</td><td class="l muted" style="white-space:normal;min-width:160px">${esc(e.venue||"")}</td></tr>`}).join("");
+    return sep+`<tr><td class="l"><span class="tag ${e.group}">${e.group}</span></td><td class="l">${e.date?esc(fmtDate(e.date)):"Por determinar"}</td><td class="l">${fin?"":esc(e.time||"")}</td><td class="team" style="text-align:right">${esc(e.home)} ${crest(e.home,18)}</td><td style="text-align:center">${fin?`<button class="link" data-match="${esc(e.id)}"><b>${st.hs}–${st.as}</b></button>`:st.kind==="live"?`<span class="chip live"><span class="dot"></span>En juego</span>`:`<button class="link" data-match="${esc(e.id)}">vs</button>`}</td><td class="team">${crest(e.away,18)}${esc(e.away)}</td><td class="l muted" style="white-space:normal;min-width:160px">${esc(e.venue||"")}</td></tr>`}).join("");
   return `<div class="controls">
     <label class="f">Grupo<select id="calGroup"><option value="all">Ambos</option><option value="A"${cg==="A"?" selected":""}>Grupo A</option><option value="B"${cg==="B"?" selected":""}>Grupo B</option></select></label>
     <label class="f">Equipo<select id="calTeam"><option value="all">Todos</option>${teamOptions(ct,cg)}</select></label></div>
@@ -388,11 +393,11 @@ views.partido=function(){
   if(!e) return `<div class="empty"><b>Partido no encontrado</b><button data-gojor>Ir a Jornadas</button></div>`;
   const st=matchState(e), g=st.g, files=actas[e.id]?.files||[];
   return `<div class="controls"><button data-gojor="${e.j}">← Jornada ${e.j}</button></div>
-  <section class="panel"><div class="panel-head"><h2>${esc(e.home)} ${st.kind==="final"?`${st.hs} – ${st.as}`:"vs"} ${esc(e.away)}</h2><span class="tag ${e.group}">Grupo ${e.group} · J${e.j}</span></div>
+  <section class="panel"><div class="panel-head"><h2>${crest(e.home,32)}${esc(e.home)} ${st.kind==="final"?`${st.hs} – ${st.as}`:"vs"} ${crest(e.away,32)}${esc(e.away)}</h2><span class="tag ${e.group}">Grupo ${e.group} · J${e.j}</span></div>
   <p class="muted" style="margin:0 0 10px">${e.date?esc(fmtDate(e.date,{weekday:"long",day:"numeric",month:"long",year:"numeric"})):"Fecha por determinar"}${e.time&&st.kind!=="final"?" · "+esc(e.time):""} · ${esc(e.venue||"")}</p>
   <div class="acts" style="display:flex;gap:6px;flex-wrap:wrap">${st.kind==="live"?`<a class="btn live" href="${FEB_URL(e.id)}" target="_blank" rel="noopener">Seguir en directo en la FEB</a>`:`<a class="btn" href="${FEB_URL(e.id)}" target="_blank" rel="noopener">${st.kind==="final"?"Acta y estadísticas oficiales FEB":"Directo FEB (disponible al empezar)"}</a>`}</div>
   ${livePanel(e,st)}
-  ${g?`<h3 style="margin-top:18px">${esc(e.home)}</h3>${boxTable(sideBox(g,"home"))}<h3 style="margin-top:18px">${esc(e.away)}</h3>${boxTable(sideBox(g,"away"))}`:`<p class="muted" style="margin-top:14px">${st.kind==="final"?"Hay resultado pero todavía no se ha cargado el acta con las estadísticas.":"Las estadísticas aparecerán cuando se cargue el acta del partido."}</p>`}
+  ${g?`<h3 style="margin-top:18px">${crest(e.home,22)}${esc(e.home)}</h3>${boxTable(sideBox(g,"home"))}<h3 style="margin-top:18px">${crest(e.away,22)}${esc(e.away)}</h3>${boxTable(sideBox(g,"away"))}`:`<p class="muted" style="margin-top:14px">${st.kind==="final"?"Hay resultado pero todavía no se ha cargado el acta con las estadísticas.":"Las estadísticas aparecerán cuando se cargue el acta del partido."}</p>`}
   </section>
   <section class="panel" style="margin-top:16px"><div class="panel-head"><h3>Actas adjuntas</h3><span class="muted" style="font-size:13px">PDF o foto del acta</span></div>
   ${files.length?`<div class="files">${files.map((f,i)=>`<div class="file"><div class="fh"><b>${esc(f.name)}</b><span class="muted" style="font-size:12px">${f.source==="feb"?"Generada con la estadística oficial FEB · ":""}${(f.size/1024).toFixed(0)} KB</span>
@@ -607,15 +612,18 @@ views.jugadora=function(){
   [...games].sort(byDate).forEach(g=>["home","away"].forEach(side=>{const b=sideBox(g,side)[p.id]; if(b&&played(b)){const own=side==="home"?g.home:g.away, rival=side==="home"?g.away:g.home, os=side==="home"?n(g.hs):n(g.as), rs=side==="home"?n(g.as):n(g.hs); log.push({g,rival,local:side==="home",os,rs,L:line(b)})}}));
   const raw=players.find(x=>x.id===p.id)||{}, pf=profiles[p.id]||{}, pos=raw.pos||"";
   const car=[...(pf.career||[])].sort((a,b)=>b.season.localeCompare(a.season));
-  const posHtml=canWrite&&!(db&&db.static)?`<select data-setpos="${esc(p.id)}" class="possel"><option value="">${pos?"— Sin indicar —":"No publicada por la FEB"}</option>${POSITIONS.map(x=>`<option${x===pos?" selected":""}>${x}</option>`).join("")}</select>`:(pos?esc(pos):`<span class="muted">No publicada por la FEB</span>`);
+  const posShown=pos||pf.pos||"";
+  const posHtml=canWrite&&!(db&&db.static)?`<select data-setpos="${esc(p.id)}" class="possel"><option value="">${pf.pos?esc(pf.pos)+" (Eurobasket)":"Sin datos"}</option>${POSITIONS.map(x=>`<option${x===pos?" selected":""}>${x}</option>`).join("")}</select>`:(posShown?esc(posShown):`<span class="muted">Sin datos</span>`);
+  const age=b=>{if(!b)return null;const [y,m,d]=b.split("-").map(Number),n=new Date();let a=n.getFullYear()-y;if(n.getMonth()+1<m||(n.getMonth()+1===m&&n.getDate()<d))a--;return a};
+  const ag=age(pf.birth), bornHtml=pf.birth?(ag>=18?`${new Date(pf.birth+"T12:00").toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"})} <span class="muted">(${ag} años)</span>`:`${pf.birth.slice(0,4)} <span class="muted">(${ag} años)</span>`):'<span class="muted">–</span>';
   const T=p.tot,gp=p.gp||1,mmss=m=>{const s=Math.round(m*60);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
   return `<div class="controls"><button data-back>← Volver a Jugadoras</button></div>
-  <section class="panel"><div class="panel-head"><h2>${p.dorsal!==""&&p.dorsal!=null?`<span class="muted">${esc(p.dorsal)}</span> `:""}${esc(p.name)}</h2><button class="link" data-go-team="${esc(p.team)}">${esc(p.team)}</button></div>
+  <section class="panel"><div class="panel-head"><h2>${p.dorsal!==""&&p.dorsal!=null?`<span class="muted">${esc(p.dorsal)}</span> `:""}${esc(p.name)}</h2><button class="link" data-go-team="${esc(p.team)}">${crest(p.team,24)}${esc(p.team)}</button></div>
   <div class="bio">
     <div><span class="k">Posición</span><span class="v">${posHtml}</span></div>
     <div><span class="k">Nacionalidad</span><span class="v">${pf.nat?esc(pf.nat):'<span class="muted">–</span>'}</span></div>
-    <div><span class="k">Altura</span><span class="v">${pf.height?(pf.height/100).toFixed(2).replace(".",",")+" m":'<span class="muted">No publicada</span>'}</span></div>
-    <div><span class="k">Equipo actual</span><span class="v">${esc(p.team)}</span></div>
+    <div><span class="k">Altura</span><span class="v">${pf.height?(pf.height/100).toFixed(2).replace(".",",")+" m":'<span class="muted">Sin datos</span>'}</span></div>
+    <div><span class="k">Nacimiento</span><span class="v">${bornHtml}</span></div>
   </div>
   <div class="kpis">
     <div class="kpi"><div class="v">${p.gp}</div><div class="k">Partidos</div></div>
@@ -636,7 +644,7 @@ views.jugadora=function(){
   ${car.length?`<div class="scroll" style="margin-top:8px"><table><thead><tr><th class="l">Temporada</th><th class="l">Competición</th><th class="l">Equipo</th></tr></thead><tbody>
   ${car.map(c=>`<tr><td class="l">${esc(c.season)}${c.season==="26/27"?' <span class="muted">(actual)</span>':""}</td><td class="l">${esc(COMP[c.comp]||c.comp)}</td><td class="l">${esc(tcase(c.team))}</td></tr>`).join("")}
   </tbody></table></div>`:`<p class="muted" style="margin-top:6px">La FEB no tiene registrada trayectoria en competiciones nacionales para esta jugadora.</p>`}
-  <p class="muted" style="font-size:12px;margin-top:6px">Fuente: ficha de la jugadora en feb.es. Solo incluye competiciones nacionales FEB (no ligas autonómicas, universitarias ni del extranjero).</p>
+  <p class="muted" style="font-size:12px;margin-top:6px">Fuentes: nacionalidad, fecha de nacimiento y trayectoria de la ficha FEB (solo competiciones nacionales FEB, no ligas autonómicas, universitarias ni del extranjero); posición${pf.heightSrc?" y altura":""} de Eurobasket${pos?" (posición indicada manualmente)":""}.</p>
   </section>`;
 };
 function sortVal(p,k){
