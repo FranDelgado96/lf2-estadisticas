@@ -611,6 +611,7 @@ views.jugadora=function(){
   const log=[];
   [...games].sort(byDate).forEach(g=>["home","away"].forEach(side=>{const b=sideBox(g,side)[p.id]; if(b&&played(b)){const own=side==="home"?g.home:g.away, rival=side==="home"?g.away:g.home, os=side==="home"?n(g.hs):n(g.as), rs=side==="home"?n(g.as):n(g.hs); log.push({g,rival,local:side==="home",os,rs,L:line(b)})}}));
   const raw=players.find(x=>x.id===p.id)||{}, pf=profiles[p.id]||{}, pos=raw.pos||"";
+  const canEdit=canWrite&&!(db&&db.static);
   const car=[...(pf.career||[])].sort((a,b)=>b.season.localeCompare(a.season));
   const posShown=pos||pf.pos||"";
   const posHtml=canWrite&&!(db&&db.static)?`<select data-setpos="${esc(p.id)}" class="possel"><option value="">${pf.pos?esc(pf.pos)+" (Eurobasket)":"Sin datos"}</option>${POSITIONS.map(x=>`<option${x===pos?" selected":""}>${x}</option>`).join("")}</select>`:(posShown?esc(posShown):`<span class="muted">Sin datos</span>`);
@@ -641,11 +642,16 @@ views.jugadora=function(){
   <tr><td class="l" colspan="4"><b>Promedio</b></td><td>${mmss(T.min/gp)}</td><td><b>${f1(T.pts/gp)}</b></td><td>${f1(T.reb/gp)}</td><td>${f1(T.ast/gp)}</td><td>${f1(T.fc/gp)}</td><td>${f1(T.fr/gp)}</td><td>${f1(T.rob/gp)}</td><td>${f1(T.per/gp)}</td><td>${T.t2m}/${T.t2a}</td><td><b>${pc(T.t2m,T.t2a)}</b></td><td>${T.t3m}/${T.t3a}</td><td><b>${pc(T.t3m,T.t3a)}</b></td><td>${T.tlm}/${T.tla}</td><td><b>${pc(T.tlm,T.tla)}</b></td><td><b>${f1(T.val/gp)}</b></td></tr>
   </tbody></table></div>`:`<p class="muted">Todavía no ha jugado ningún partido con acta registrada.</p>`}
   <h3 style="margin-top:18px">Trayectoria (últimas 5 temporadas)</h3>
-  <div class="scroll" style="margin-top:8px"><table><thead><tr><th class="l">Temporada</th><th class="l">Equipo</th><th class="l">Competición</th></tr></thead><tbody>
-  ${[26,25,24,23,22,21].map(y=>{const sn=`${y}/${y+1}`;const es=car.filter(c=>c.season===sn);
-    if(!es.length) return `<tr><td class="l">${sn}</td><td class="l muted" colspan="2">Sin datos (posiblemente categorías de formación)</td></tr>`;
-    return es.map((c,i)=>`<tr><td class="l">${i?"":sn+(y===26?' <span class="muted">(actual)</span>':"")}</td><td class="l">${esc(/[a-z]/.test(c.team)?c.team:tcase(c.team))}</td><td class="l">${esc(COMP[c.comp]||c.comp)}</td></tr>`).join("")}).join("")}
+  <div class="scroll" style="margin-top:8px"><table><thead><tr><th class="l">Temporada</th><th class="l">Equipo</th><th class="l">Categoría / competición</th>${canEdit?"<th></th>":""}</tr></thead><tbody>
+  ${[26,25,24,23,22,21].map(y=>{const sn=`${y}/${y+1}`;const man=(raw.careerManual||{})[sn];const es=man&&man.team?[{season:sn,team:man.team,comp:man.comp||"",manual:true}]:car.filter(c=>c.season===sn);
+    const lab=sn+(y===26?' <span class="muted">(actual)</span>':"");
+    const ed=canEdit?`<td style="white-space:nowrap"><button class="link" data-editcar="${sn}">Editar</button></td>`:"";
+    if(ui.editCar===p.id+"|"+sn) return `<tr><td class="l">${sn}</td><td class="l"><input id="carTeam" type="text" placeholder="Equipo" value="${esc(es[0]?(/[a-z]/.test(es[0].team)?es[0].team:tcase(es[0].team)):"")}" style="width:100%"></td><td class="l"><input id="carComp" type="text" list="carComps" placeholder="Categoría / competición" value="${esc(es[0]?(COMP[es[0].comp]||es[0].comp):"")}" style="width:100%"></td><td style="white-space:nowrap"><button class="primary" data-savecar="${sn}">Guardar</button> <button data-cancelcar>Cancelar</button>${man?` <button class="link" data-clearcar="${sn}">Quitar</button>`:""}</td></tr>`;
+    if(!es.length) return `<tr><td class="l">${lab}</td><td class="l muted" colspan="2">Sin datos publicados</td>${ed}</tr>`;
+    return es.map((c,i)=>`<tr><td class="l">${i?"":lab}</td><td class="l">${esc(/[a-z]/.test(c.team)?c.team:tcase(c.team))}</td><td class="l">${esc(COMP[c.comp]||c.comp)}${c.manual?' <span class="muted">(manual)</span>':""}</td>${i?(canEdit?"<td></td>":""):ed}</tr>`).join("")}).join("")}
   </tbody></table></div>
+  <datalist id="carComps">${["Liga Femenina Endesa","LF Challenge","Liga Femenina 2","Primera División (autonómica)","Segunda División (autonómica)","Júnior","Júnior (autonómica)","Cadete","Cadete (autonómica)","Infantil","Preinfantil","Minibasket","NCAA I (EE. UU.)","NCAA II (EE. UU.)","JUCO (EE. UU.)","Instituto (EE. UU.)"].map(x=>`<option value="${x}">`).join("")}</datalist>
+  ${canEdit?'<p class="legend" style="margin-top:6px">Pulsa «Editar» en una temporada para poner el equipo y la categoría a mano; lo que guardes tiene prioridad y pasa a la web pública en la siguiente actualización automática.</p>':""}
   <p class="muted" style="font-size:12px;margin-top:6px">Fuentes: ficha FEB (nacionalidad, fecha de nacimiento y competiciones nacionales), Eurobasket (posición${pf.heightSrc?", altura":""} y último equipo fuera de la FEB), Flashscore y webs oficiales de universidades y clubes (temporadas en el extranjero y en la NCAA)${pos?". Posición indicada manualmente":""}.</p>
   </section>`;
 };
@@ -772,7 +778,12 @@ document.addEventListener("input",e=>{
 document.addEventListener("click",async e=>{
   const t=e.target.closest("button,[data-go-team]"); if(!t)return;
   if(t.dataset.goTeam){ui.team=t.dataset.goTeam;go("equipos");return}
-  if(t.dataset.player){ui.player=t.dataset.player;go("jugadora");return}
+  if(t.dataset.player){ui.player=t.dataset.player;ui.editCar=null;go("jugadora");return}
+  if(t.dataset.editcar){ui.editCar=ui.player+"|"+t.dataset.editcar;render();setTimeout(()=>document.getElementById("carTeam")?.focus(),0);return}
+  if(t.dataset.cancelcar!==undefined){ui.editCar=null;render();return}
+  if(t.dataset.savecar||t.dataset.clearcar){const sn=t.dataset.savecar||t.dataset.clearcar,p=players.find(x=>x.id===ui.player);if(!p)return;const {id:_,...doc}=p;const cm={...(doc.careerManual||{})};
+    if(t.dataset.savecar){const team=(document.getElementById("carTeam").value||"").trim(),comp=(document.getElementById("carComp").value||"").trim();if(!team){toast("Escribe el equipo");return}cm[sn]={team,comp}}else delete cm[sn];
+    doc.careerManual=cm;t.disabled=true;try{await db.doc("players/"+p.id).set(doc);ui.editCar=null;toast(t.dataset.savecar?`Temporada ${sn} guardada`:`Temporada ${sn} restablecida`);render()}catch(err){t.disabled=false;toast("No se pudo guardar: "+err.message)}return}
   if(t.dataset.match){ui.match=t.dataset.match;ui.openPdf=null;go("partido");return}
   if(t.dataset.openacta){const fid=t.dataset.openacta,pdf=(actas[fid]?.files||[]).find(f=>f.type==="application/pdf");ui.match=fid;ui.openPdf=pdf?pdf.id:null;go("partido");setTimeout(()=>document.querySelector(".pdfview")?.scrollIntoView({behavior:"smooth",block:"start"}),80);return}
   if(t.dataset.jstep){ui.jornada=Math.min(26,Math.max(1,(ui.jornada||1)+Number(t.dataset.jstep)));render();return}
