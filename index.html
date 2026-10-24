@@ -307,12 +307,12 @@ partidos(){
   ${list.length?`<div class="games">${list.map(gameCard).join("")}</div>`:`<div class="empty"><b>Ningún partido registrado</b>${canWrite?"Pulsa «Registrar partido» para meter el marcador y, si quieres, el acta de cada jugadora.":"Cuando se registren partidos aparecerán aquí."}</div>`}`;
 },
 plantillas(){
-  const roster=players.filter(p=>p.team===ui.rosterTeam).sort((a,b)=>n(a.dorsal)-n(b.dorsal)||a.name.localeCompare(b.name));
+  const roster=playerTotals().filter(p=>p.team===ui.rosterTeam).sort((a,b)=>{const da=a.dorsal===""||a.dorsal==null?999:n(a.dorsal),db=b.dorsal===""||b.dorsal==null?999:n(b.dorsal);return da-db||a.name.localeCompare(b.name)});
   return `<div class="controls"><label class="f">Equipo<select id="rosterTeam">${teamOptions(ui.rosterTeam)}</select></label></div>
   <section class="panel"><div class="panel-head"><h2>${esc(ui.rosterTeam)}</h2><span class="tag ${GROUP_OF[ui.rosterTeam]}">Grupo ${GROUP_OF[ui.rosterTeam]}</span></div>
   ${roster.length?`<div class="scroll"><table><thead><tr><th>Dorsal</th><th class="l">Jugadora</th><th class="l">Posición</th><th></th></tr></thead><tbody>
-  ${roster.map(p=>`<tr><td>${esc(p.dorsal)}</td><td class="l">${esc(p.name)}</td><td class="l">${esc(p.pos||"")}</td><td>${canWrite?delBtn("player",p.id):""}</td></tr>`).join("")}
-  </tbody></table></div>`:`<div class="empty"><b>Plantilla vacía</b>${canWrite?"Añade la primera jugadora con su dorsal.":"Todavía no hay jugadoras en este equipo."}</div>`}
+  ${roster.map(p=>`<tr><td>${p.dorsal!==""&&p.dorsal!=null?esc(p.dorsal):'<span class="muted">–</span>'}</td><td class="l"><button class="link pl" data-player="${esc(p.id)}">${esc(p.name)}</button></td><td class="l">${esc(p.pos||(profiles[p.id]||{}).pos||"")}</td><td>${canWrite?delBtn("player",p.id):""}</td></tr>`).join("")}
+  </tbody></table></div><p class="legend" style="margin-top:6px">Dorsal según la última acta en la que ha jugado; las que aún no han jugado muestran el de la inscripción.</p>`:`<div class="empty"><b>Plantilla vacía</b>${canWrite?"Añade la primera jugadora con su dorsal.":"Todavía no hay jugadoras en este equipo."}</div>`}
   ${canWrite?`<form class="rowadd" id="addPlayer"><input id="apDorsal" type="number" min="0" max="99" placeholder="Dorsal" required><input id="apName" type="text" placeholder="Nombre y apellidos" required><select id="apPos"><option value="">Posición</option><option>Base</option><option>Escolta</option><option>Alero</option><option>Ala-pívot</option><option>Pívot</option></select><button class="primary">Añadir jugadora</button></form>`:""}
   </section>`;
 }
