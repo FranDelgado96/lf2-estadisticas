@@ -286,6 +286,19 @@ def cmd_bundle(a):
     players = [dict(strip(p), id=p["_id"]) for p in load_dir(a.data, "players")]
     games = [dict(strip(g), id=g["_id"]) for g in load_dir(a.data, "games")]
     sched = {s["_id"]: strip(s) for s in load_dir(a.data, "schedule")}
+    # actas que falten en la web pública: se generan a partir de la estadística guardada
+    sched_by_id = {e["id"]: e for e in schedule(a.data)}
+    names = {p["_id"]: p.get("name") for p in load_dir(a.data, "players")}
+    for g in load_dir(a.data, "games"):
+        fid = g.get("febId")
+        if not fid or not g.get("box"):
+            continue
+        pdf = os.path.join(a.site, "actas", fid + ".pdf")
+        if not os.path.exists(pdf):
+            try:
+                make_pdf(g, sched_by_id.get(fid, {}), names, pdf)
+            except Exception as ex:
+                print("aviso: no se pudo generar el acta", fid, ex, file=sys.stderr)
     actas = {}
     for d in load_dir(a.data, "actas"):
         fid = d["_id"]; pdf = os.path.join(a.site, "actas", fid + ".pdf")
@@ -299,6 +312,10 @@ def cmd_bundle(a):
             files.append(f)
         if files:
             actas[fid] = {"files": files}
+    for g in load_dir(a.data, "games"):
+        fid = g.get("febId"); pdf = os.path.join(a.site, "actas", (fid or "x") + ".pdf")
+        if fid and fid not in actas and os.path.exists(pdf):
+            actas[fid] = {"files": [{"id": "pub-" + fid, "name": f"Acta {fid} (estadística FEB).pdf", "type": "application/pdf", "size": os.path.getsize(pdf), "url": "actas/" + fid + ".pdf", "source": "feb"}]}
     live = {d["_id"]: strip(d) for d in load_dir(a.data, "live")}
     b = {"generated": int(time.time() * 1000), "players": players, "games": games, "schedule": sched, "actas": actas, "live": live}
     json.dump(b, open(os.path.join(a.site, "data", "bundle.json"), "w", encoding="utf8"), ensure_ascii=False, separators=(",", ":"))
