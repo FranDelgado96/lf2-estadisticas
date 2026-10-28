@@ -4,6 +4,11 @@
       "source": "/challenge",
       "destination": "/challenge/",
       "permanent": false
+    },
+    {
+      "source": "/zamarat",
+      "destination": "/zamarat/",
+      "permanent": false
     }
   ],
   "headers": [
@@ -22,6 +27,19 @@
         {
           "key": "Cache-Control",
           "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/zamarat/data.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
         }
       ]
     }
