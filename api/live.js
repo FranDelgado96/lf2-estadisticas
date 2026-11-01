@@ -13,11 +13,15 @@ async function getToken(force) {
 }
 
 const N = x => Number(x) || 0;
+function pm(p) {
+  for (const k of ["pllss", "plusminus", "plusMinus", "pm", "masmenos", "pmn"]) if (p[k] != null && p[k] !== "" && Number.isFinite(Number(p[k]))) return { pm: Number(p[k]) };
+  return {};
+}
 function rows(team) {
   return (team && team.PLAYER || []).map(p => ({
     id: String(p.id || ""), st: p.inn === "1" || p.sta === "1", d: N(p.no), name: p.name, min: Math.round(N(p.min) / 60 * 100) / 100, pts: N(p.pts),
     t2: [N(p.p2m), N(p.p2a)], t3: [N(p.p3m), N(p.p3a)], tl: [N(p.p1m), N(p.p1a)], ro: N(p.ro), rd: N(p.rd), ast: N(p.assist),
-    rob: N(p.st), per: N(p.to), tap: N(p.bs), fc: N(p.pf), fr: N(p.rf), va: N(p.val)
+    rob: N(p.st), per: N(p.to), tap: N(p.bs), fc: N(p.pf), fr: N(p.rf), va: N(p.val), ...pm(p)
   }));
 }
 

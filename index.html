@@ -202,8 +202,12 @@ function line(b){
   const x={}; FIELDS.forEach(k=>x[k]=n(b?.[k]));
   x.pts=b&&b.pts!=null&&b.pts!==""?n(b.pts):2*x.t2m+3*x.t3m+x.tlm; x.reb=x.ro+x.rd;
   x.val=b&&b.va!=null&&b.va!==""?n(b.va):x.pts+x.reb+x.ast+x.rob+x.tap+x.fr-(x.t2a-x.t2m)-(x.t3a-x.t3m)-(x.tla-x.tlm)-x.per-x.fc;
+  x.pmg=hasPm(b)?1:0; x.pm=x.pmg?n(b.pm):0;
   return x;
 }
+function hasPm(b){return !!b&&b.pm!=null&&b.pm!==""&&Number.isFinite(Number(b.pm))}
+const fpm=v=>{const r=Math.round(v*10)/10, t=Number.isInteger(v)?String(v):r.toFixed(1); return v>0?"+"+t:t};
+const pmCell=v=>`<span class="${v>0?"w":v<0?"lo":""}">${fpm(v)}</span>`;
 function played(b){return b && FIELDS.some(k=>n(b[k])>0)}
 function sideBox(g,side){return (g.box&&g.box[side])||{}}
 function standings(group){
@@ -284,7 +288,8 @@ jugadoras(){
   list.sort((a,b)=>val(b)-val(a));
   const board=(k,label)=>{const top=[...list].filter(p=>p.gp).sort((a,b)=>b.tot[k]/b.gp-a.tot[k]/a.gp||b.tot[k]-a.tot[k]).slice(0,10);
     return `<section class="panel"><div class="panel-head"><h3>${label}</h3><span class="muted" style="font-size:12px">por partido</span></div>${top.length?`<ol>${top.map((p,i)=>`<li><span class="rk">${i+1}</span><span class="who"><button class="link pl" data-player="${esc(p.id)}">${esc(p.name)}</button><small>${esc(p.team)} · ${p.gp} PJ · ${p.tot[k]} en total</small></span><span class="lv">${f1(p.tot[k]/p.gp)}</span></li>`).join("")}</ol>`:`<p class="muted">Sin datos todavía.</p>`}</section>`};
-  const leaders=`<div class="leaders">${board("pts","Máximas anotadoras")}${board("reb","Máximas reboteadoras")}${board("ast","Máximas asistentes")}</div>`;
+  const leaders=`<div class="leaders">${board("pts","Máximas anotadoras")}${board("reb","Máximas reboteadoras")}${board("ast","Máximas asistentes")}${(()=>{const top=[...list].filter(p=>p.tot.pmg).sort((a,b)=>b.tot.pm-a.tot.pm).slice(0,10);
+    return `<section class="panel"><div class="panel-head"><h3>Mejor +/-</h3><span class="muted" style="font-size:12px">total</span></div>${top.length?`<ol>${top.map((p,i)=>`<li><span class="rk">${i+1}</span><span class="who"><button class="link pl" data-player="${esc(p.id)}">${esc(p.name)}</button><small>${esc(p.team)} · ${p.tot.pmg} PJ con +/- · ${fpm(p.tot.pm/p.tot.pmg)} por partido</small></span><span class="lv">${fpm(p.tot.pm)}</span></li>`).join("")}</ol>`:`<p class="muted">Sin datos de +/- todavía.</p>`}</section>`})()}</div>`;
   return `<div class="controls">
     <label class="f">Grupo<select id="pGroup"><option value="all">Todos</option><option value="A"${ui.pGroup==="A"?" selected":""}>Grupo A</option><option value="B"${ui.pGroup==="B"?" selected":""}>Grupo B</option></select></label>
     <label class="f">Equipo<select id="pTeam"><option value="all">Todos</option>${teamOptions(ui.pTeam,ui.pGroup)}</select></label>
@@ -293,7 +298,7 @@ jugadoras(){
   </div>
   ${leaders}
   <section class="panel"><div class="panel-head"><h3>Todas las jugadoras</h3></div>
-  ${list.length?`<div class="scroll">${playerTable(list,true)}</div><p class="legend">Pulsa una cabecera para ordenar. Pulsa el nombre de una jugadora para ver su estadística partido a partido. FC: faltas cometidas. FR: faltas recibidas. VAL: valoración oficial del acta FEB.</p>`
+  ${list.length?`<div class="scroll">${playerTable(list,true)}</div><p class="legend">Pulsa una cabecera para ordenar. Pulsa el nombre de una jugadora para ver su estadística partido a partido. FC: faltas cometidas. FR: faltas recibidas. VAL: valoración oficial del acta FEB. +/-: diferencia de puntos del equipo con la jugadora en pista (en promedios, media de los partidos con +/- registrado; en totales, la suma).</p>`
    :`<div class="empty"><b>Sin estadísticas que mostrar</b>Las jugadoras aparecen aquí cuando tienen al menos ${ui.minG} partido${ui.minG===1?"":"s"} con acta registrada en Partidos.</div>`}
   </section>`;
 },
@@ -384,9 +389,9 @@ function boxTable(box){
   const pname=id=>players.find(p=>p.id===id)?.name||box[id]?.name||"Jugadora";
   const mmss=m=>{const s=Math.round(m*60);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
   const T=line({});ids.forEach(id=>{const L=line(box[id]);for(const k in L)T[k]+=L[k]});
-  return `<div class="scroll"><table><thead><tr><th>D</th><th class="l">Jugadora</th><th>MIN</th><th>PTS</th><th>T2</th><th>T2%</th><th>T3</th><th>T3%</th><th>TL</th><th>TL%</th><th>RO</th><th>RD</th><th>REB</th><th>AST</th><th>ROB</th><th>PER</th><th>TAP</th><th>FC</th><th>FR</th><th>VAL</th></tr></thead><tbody>
-  ${ids.map(id=>{const L=line(box[id]);return `<tr><td class="muted">${esc(box[id].d??"")}</td><td class="l"><button class="link pl" data-player="${esc(id)}">${esc(pname(id))}</button></td><td>${mmss(L.min)}</td><td><b>${L.pts}</b></td><td>${L.t2m}/${L.t2a}</td><td>${pc(L.t2m,L.t2a)}</td><td>${L.t3m}/${L.t3a}</td><td>${pc(L.t3m,L.t3a)}</td><td>${L.tlm}/${L.tla}</td><td>${pc(L.tlm,L.tla)}</td><td>${L.ro}</td><td>${L.rd}</td><td><b>${L.reb}</b></td><td>${L.ast}</td><td>${L.rob}</td><td>${L.per}</td><td>${L.tap}</td><td>${L.fc}</td><td>${L.fr}</td><td><b>${L.val}</b></td></tr>`}).join("")}
-  <tr><td></td><td class="l"><b>Total</b></td><td>${Math.round(T.min)}</td><td><b>${T.pts}</b></td><td>${T.t2m}/${T.t2a}</td><td>${pc(T.t2m,T.t2a)}</td><td>${T.t3m}/${T.t3a}</td><td>${pc(T.t3m,T.t3a)}</td><td>${T.tlm}/${T.tla}</td><td>${pc(T.tlm,T.tla)}</td><td>${T.ro}</td><td>${T.rd}</td><td><b>${T.reb}</b></td><td>${T.ast}</td><td>${T.rob}</td><td>${T.per}</td><td>${T.tap}</td><td>${T.fc}</td><td>${T.fr}</td><td><b>${T.val}</b></td></tr>
+  return `<div class="scroll"><table><thead><tr><th>D</th><th class="l">Jugadora</th><th>MIN</th><th>PTS</th><th>T2</th><th>T2%</th><th>T3</th><th>T3%</th><th>TL</th><th>TL%</th><th>RO</th><th>RD</th><th>REB</th><th>AST</th><th>ROB</th><th>PER</th><th>TAP</th><th>FC</th><th>FR</th><th>VAL</th><th title="Diferencia de puntos con la jugadora en pista">+/-</th></tr></thead><tbody>
+  ${ids.map(id=>{const L=line(box[id]);return `<tr><td class="muted">${esc(box[id].d??"")}</td><td class="l"><button class="link pl" data-player="${esc(id)}">${esc(pname(id))}</button></td><td>${mmss(L.min)}</td><td><b>${L.pts}</b></td><td>${L.t2m}/${L.t2a}</td><td>${pc(L.t2m,L.t2a)}</td><td>${L.t3m}/${L.t3a}</td><td>${pc(L.t3m,L.t3a)}</td><td>${L.tlm}/${L.tla}</td><td>${pc(L.tlm,L.tla)}</td><td>${L.ro}</td><td>${L.rd}</td><td><b>${L.reb}</b></td><td>${L.ast}</td><td>${L.rob}</td><td>${L.per}</td><td>${L.tap}</td><td>${L.fc}</td><td>${L.fr}</td><td><b>${L.val}</b></td><td>${L.pmg?pmCell(L.pm):'<span class="muted">–</span>'}</td></tr>`}).join("")}
+  <tr><td></td><td class="l"><b>Total</b></td><td>${Math.round(T.min)}</td><td><b>${T.pts}</b></td><td>${T.t2m}/${T.t2a}</td><td>${pc(T.t2m,T.t2a)}</td><td>${T.t3m}/${T.t3a}</td><td>${pc(T.t3m,T.t3a)}</td><td>${T.tlm}/${T.tla}</td><td>${pc(T.tlm,T.tla)}</td><td>${T.ro}</td><td>${T.rd}</td><td><b>${T.reb}</b></td><td>${T.ast}</td><td>${T.rob}</td><td>${T.per}</td><td>${T.tap}</td><td>${T.fc}</td><td>${T.fr}</td><td><b>${T.val}</b></td><td></td></tr>
   </tbody></table></div>`;
 }
 views.partido=function(){
@@ -422,7 +427,7 @@ function parseLive(txt){
     if(/^REBOTES\b/.test(raw.trim())){cur={rows:[]};teams.push(cur);continue}
     if(!cur)continue; const f=raw.split("\t").map(x=>x.trim());
     if(f.length>=21&&/^\d+$/.test(f[1])&&/^\d+:\d\d$/.test(f[3])){const sp=x=>x.split("/").map(Number);const [m,se]=f[3].split(":").map(Number);
-      cur.rows.push({st:f[0]==="*",d:+f[1],name:f[2],min:Math.round((m+se/60)*100)/100,pts:+f[4],t2:sp(f[5]),t3:sp(f[6]),tl:sp(f[8]),ro:+f[9],rd:+f[10],ast:+f[12],rob:+f[13],per:+f[14],tap:+f[15],fc:+f[18],fr:+f[19],va:+f[20]})}
+      cur.rows.push({st:f[0]==="*",d:+f[1],name:f[2],min:Math.round((m+se/60)*100)/100,pts:+f[4],t2:sp(f[5]),t3:sp(f[6]),tl:sp(f[8]),ro:+f[9],rd:+f[10],ast:+f[12],rob:+f[13],per:+f[14],tap:+f[15],fc:+f[18],fr:+f[19],va:+f[20],...(f[21]!=null&&/^[+-]?\d+$/.test(f[21])?{pm:+f[21]}:{})})}
   }
   if(!/^\d+$/.test(hs)||!/^\d+$/.test(as)) return null;
   return {home,away,hs:+hs,as:+as,status,quarters,teams};
@@ -487,8 +492,8 @@ async function publishLive(id,d){
   lastLivePub[id]=key; try{await db.doc("live/"+id).set(doc)}catch(e){}
 }
 function liveBox(rows){
-  return `<div class="scroll"><table><thead><tr><th>D</th><th class="l">Jugadora</th><th>MIN</th><th>PTS</th><th>T2</th><th>T2%</th><th>T3</th><th>T3%</th><th>TL</th><th>TL%</th><th>RO</th><th>RD</th><th>REB</th><th>AST</th><th>ROB</th><th>PER</th><th>FC</th><th>FR</th><th>VAL</th></tr></thead><tbody>
-  ${(rows||[]).filter(r=>r.min>0).map(r=>`<tr><td class="muted">${r.d}${r.st?"*":""}</td><td class="l">${esc(r.name)}</td><td>${Math.floor(r.min)}:${String(Math.round((r.min%1)*60)).padStart(2,"0")}</td><td><b>${r.pts}</b></td><td>${r.t2.join("/")}</td><td>${pc(r.t2[0],r.t2[1])}</td><td>${r.t3.join("/")}</td><td>${pc(r.t3[0],r.t3[1])}</td><td>${r.tl.join("/")}</td><td>${pc(r.tl[0],r.tl[1])}</td><td>${r.ro}</td><td>${r.rd}</td><td><b>${r.ro+r.rd}</b></td><td>${r.ast}</td><td>${r.rob}</td><td>${r.per}</td><td>${r.fc}</td><td>${r.fr}</td><td><b>${r.va}</b></td></tr>`).join("")}</tbody></table></div>`;
+  return `<div class="scroll"><table><thead><tr><th>D</th><th class="l">Jugadora</th><th>MIN</th><th>PTS</th><th>T2</th><th>T2%</th><th>T3</th><th>T3%</th><th>TL</th><th>TL%</th><th>RO</th><th>RD</th><th>REB</th><th>AST</th><th>ROB</th><th>PER</th><th>FC</th><th>FR</th><th>VAL</th><th>+/-</th></tr></thead><tbody>
+  ${(rows||[]).filter(r=>r.min>0).map(r=>`<tr><td class="muted">${r.d}${r.st?"*":""}</td><td class="l">${esc(r.name)}</td><td>${Math.floor(r.min)}:${String(Math.round((r.min%1)*60)).padStart(2,"0")}</td><td><b>${r.pts}</b></td><td>${r.t2.join("/")}</td><td>${pc(r.t2[0],r.t2[1])}</td><td>${r.t3.join("/")}</td><td>${pc(r.t3[0],r.t3[1])}</td><td>${r.tl.join("/")}</td><td>${pc(r.tl[0],r.tl[1])}</td><td>${r.ro}</td><td>${r.rd}</td><td><b>${r.ro+r.rd}</b></td><td>${r.ast}</td><td>${r.rob}</td><td>${r.per}</td><td>${r.fc}</td><td>${r.fr}</td><td><b>${r.va}</b></td><td>${hasPm(r)?pmCell(n(r.pm)):'<span class="muted">–</span>'}</td></tr>`).join("")}</tbody></table></div>`;
 }
 function liveBlock(e,d,when,note){
   return `<div class="kpis"><div class="kpi"><div class="v">${d.hs} – ${d.as}</div><div class="k">${d.status==="FINAL"?"Final":esc(d.status)}</div></div>${(d.quarters||[]).map(q=>`<div class="kpi"><div class="v" style="font-size:22px">${q.h}–${q.a}</div><div class="k">${q.q}º cuarto</div></div>`).join("")}</div>
@@ -525,7 +530,7 @@ async function saveLive(id,quiet=false){
       let pid=cand.length===1?cand[0].id:null;
       if(!pid){pid="live-"+id+"-"+side[0]+r.d; const nm=ini+" "+rest.join(" ").toLowerCase().replace(/(^|[\s-])\S/g,c=>c.toUpperCase());
         try{await db.doc("players/"+pid).set({name:nm,dorsal:r.d,pos:"",team,source:"directo",created:Date.now()})}catch(err){toast("No se pudo crear "+nm);return}}
-      box[side][pid]={d:r.d,min:r.min,pts:r.pts,t2m:r.t2[0],t2a:r.t2[1],t3m:r.t3[0],t3a:r.t3[1],tlm:r.tl[0],tla:r.tl[1],ro:r.ro,rd:r.rd,ast:r.ast,rob:r.rob,per:r.per,tap:r.tap,fc:r.fc,fr:r.fr,va:r.va};
+      box[side][pid]={d:r.d,min:r.min,pts:r.pts,t2m:r.t2[0],t2a:r.t2[1],t3m:r.t3[0],t3a:r.t3[1],tlm:r.tl[0],tla:r.tl[1],ro:r.ro,rd:r.rd,ast:r.ast,rob:r.rob,per:r.per,tap:r.tap,fc:r.fc,fr:r.fr,va:r.va,...(hasPm(r)?{pm:n(r.pm)}:{})};
     }
   }
   try{await db.doc("games/feb-g-"+id).set({group:e.group,jornada:e.j,date:e.date,home:e.home,away:e.away,hs:d.hs,as:d.as,box,source:"directo",febId:id,updated:Date.now()});toast(`Final guardado: ${e.home} ${d.hs}–${d.as} ${e.away}`);render()}
@@ -636,11 +641,13 @@ views.jugadora=function(){
     <div class="kpi"><div class="v">${p.gp?f1(T.fc/gp):"–"}</div><div class="k">Faltas cometidas</div></div>
     <div class="kpi"><div class="v">${p.gp?f1(T.fr/gp):"–"}</div><div class="k">Faltas recibidas</div></div>
     <div class="kpi"><div class="v">${p.gp?f1(T.val/gp):"–"}</div><div class="k">Valoración</div></div>
+    <div class="kpi"><div class="v">${T.pmg?fpm(T.pm):"–"}</div><div class="k">+/- total${T.pmg?` (${fpm(T.pm/T.pmg)} por partido)`:""}</div></div>
   </div>
   <h3>Partido a partido</h3>
-  ${log.length?`<div class="scroll" style="margin-top:8px"><table><thead><tr><th class="l">J</th><th class="l">Fecha</th><th class="l">Rival</th><th>Res.</th><th>MIN</th><th>PTS</th><th>RO</th><th>RD</th><th>REB</th><th>AST</th><th>FC</th><th>FR</th><th>ROB</th><th>PER</th><th>T2</th><th>T2%</th><th>T3</th><th>T3%</th><th>TL</th><th>TL%</th><th>VAL</th></tr></thead><tbody>
-  ${log.map(r=>{const L=r.L,d=r.g.date?new Date(r.g.date+"T12:00").toLocaleDateString("es-ES",{day:"numeric",month:"short"}):"";return `<tr><td class="l">${esc(r.g.jornada)}</td><td class="l">${d}</td><td class="l">${r.local?"vs":"en"} ${esc(r.rival)}</td><td class="${r.os>r.rs?"w":"lo"}">${r.os>r.rs?"G":"P"} ${r.os}-${r.rs}</td><td>${mmss(L.min)}</td><td><b>${L.pts}</b></td><td>${L.ro}</td><td>${L.rd}</td><td>${L.reb}</td><td>${L.ast}</td><td>${L.fc}</td><td>${L.fr}</td><td>${L.rob}</td><td>${L.per}</td><td>${L.t2m}/${L.t2a}</td><td>${pc(L.t2m,L.t2a)}</td><td>${L.t3m}/${L.t3a}</td><td>${pc(L.t3m,L.t3a)}</td><td>${L.tlm}/${L.tla}</td><td>${pc(L.tlm,L.tla)}</td><td><b>${L.val}</b></td></tr>`}).join("")}
-  <tr><td class="l" colspan="4"><b>Promedio</b></td><td>${mmss(T.min/gp)}</td><td><b>${f1(T.pts/gp)}</b></td><td>${f1(T.ro/gp)}</td><td>${f1(T.rd/gp)}</td><td>${f1(T.reb/gp)}</td><td>${f1(T.ast/gp)}</td><td>${f1(T.fc/gp)}</td><td>${f1(T.fr/gp)}</td><td>${f1(T.rob/gp)}</td><td>${f1(T.per/gp)}</td><td>${T.t2m}/${T.t2a}</td><td><b>${pc(T.t2m,T.t2a)}</b></td><td>${T.t3m}/${T.t3a}</td><td><b>${pc(T.t3m,T.t3a)}</b></td><td>${T.tlm}/${T.tla}</td><td><b>${pc(T.tlm,T.tla)}</b></td><td><b>${f1(T.val/gp)}</b></td></tr>
+  ${log.length?`<div class="scroll" style="margin-top:8px"><table><thead><tr><th class="l">J</th><th class="l">Fecha</th><th class="l">Rival</th><th>Res.</th><th>MIN</th><th>PTS</th><th>RO</th><th>RD</th><th>REB</th><th>AST</th><th>FC</th><th>FR</th><th>ROB</th><th>PER</th><th>T2</th><th>T2%</th><th>T3</th><th>T3%</th><th>TL</th><th>TL%</th><th>VAL</th><th>+/-</th></tr></thead><tbody>
+  ${log.map(r=>{const L=r.L,d=r.g.date?new Date(r.g.date+"T12:00").toLocaleDateString("es-ES",{day:"numeric",month:"short"}):"";return `<tr><td class="l">${esc(r.g.jornada)}</td><td class="l">${d}</td><td class="l">${r.local?"vs":"en"} ${esc(r.rival)}</td><td class="${r.os>r.rs?"w":"lo"}">${r.os>r.rs?"G":"P"} ${r.os}-${r.rs}</td><td>${mmss(L.min)}</td><td><b>${L.pts}</b></td><td>${L.ro}</td><td>${L.rd}</td><td>${L.reb}</td><td>${L.ast}</td><td>${L.fc}</td><td>${L.fr}</td><td>${L.rob}</td><td>${L.per}</td><td>${L.t2m}/${L.t2a}</td><td>${pc(L.t2m,L.t2a)}</td><td>${L.t3m}/${L.t3a}</td><td>${pc(L.t3m,L.t3a)}</td><td>${L.tlm}/${L.tla}</td><td>${pc(L.tlm,L.tla)}</td><td><b>${L.val}</b></td><td>${L.pmg?pmCell(L.pm):'<span class="muted">–</span>'}</td></tr>`}).join("")}
+  <tr><td class="l" colspan="4"><b>Promedio</b></td><td>${mmss(T.min/gp)}</td><td><b>${f1(T.pts/gp)}</b></td><td>${f1(T.ro/gp)}</td><td>${f1(T.rd/gp)}</td><td>${f1(T.reb/gp)}</td><td>${f1(T.ast/gp)}</td><td>${f1(T.fc/gp)}</td><td>${f1(T.fr/gp)}</td><td>${f1(T.rob/gp)}</td><td>${f1(T.per/gp)}</td><td>${T.t2m}/${T.t2a}</td><td><b>${pc(T.t2m,T.t2a)}</b></td><td>${T.t3m}/${T.t3a}</td><td><b>${pc(T.t3m,T.t3a)}</b></td><td>${T.tlm}/${T.tla}</td><td><b>${pc(T.tlm,T.tla)}</b></td><td><b>${f1(T.val/gp)}</b></td><td>${T.pmg?pmCell(Math.round(T.pm/T.pmg*10)/10):'<span class="muted">–</span>'}</td></tr>
+  ${T.pmg?`<tr><td class="l" colspan="21"><b>Total +/-</b>${T.pmg<p.gp?` <span class="muted">(${T.pmg} de ${p.gp} partidos con +/- registrado)</span>`:""}</td><td><b>${pmCell(T.pm)}</b></td></tr>`:""}
   </tbody></table></div>`:`<p class="muted">Todavía no ha jugado ningún partido con acta registrada.</p>`}
   <h3 style="margin-top:18px">Trayectoria (últimas 5 temporadas)</h3>
   <div class="scroll" style="margin-top:8px"><table><thead><tr><th class="l">Temporada</th><th class="l">Equipo</th><th class="l">Categoría / competición</th>${canEdit?"<th></th>":""}</tr></thead><tbody>
@@ -662,16 +669,17 @@ function sortVal(p,k){
   if(k==="t2p")return T.t2a?T.t2m/T.t2a:-1;
   if(k==="t3p")return T.t3a?T.t3m/T.t3a:-1;
   if(k==="tlp")return T.tla?T.tlm/T.tla:-1;
+  if(k==="pm")return T.pmg?(ui.mode==="avg"?T.pm/T.pmg:T.pm):-1e9;
   return (T[k]||0)/d;
 }
 function playerTable(list,sortable){
-  const avg=ui.mode==="avg"||!sortable, cols=[["gp","PJ"],["min","MIN"],["pts","PTS"],["ro","RO"],["rd","RD"],["reb","REB"],["ast","AST"],["fc","FC"],["fr","FR"],["rob","ROB"],["tap","TAP"],["per","PER"],["t2p","T2%"],["t3p","T3%"],["tlp","TL%"],["val","VAL"]];
+  const avg=ui.mode==="avg"||!sortable, cols=[["gp","PJ"],["min","MIN"],["pts","PTS"],["ro","RO"],["rd","RD"],["reb","REB"],["ast","AST"],["fc","FC"],["fr","FR"],["rob","ROB"],["tap","TAP"],["per","PER"],["t2p","T2%"],["t3p","T3%"],["tlp","TL%"],["val","VAL"],["pm","+/-"]];
   const th=c=>`<th${sortable?` class="sortable${ui.sort===c[0]?" sorted":""}" data-sort="${c[0]}"`:""}>${c[1]}</th>`;
   return `<table><thead><tr>${sortable?'<th class="pos">#</th>':""}<th class="l">Jugadora</th>${sortable?'<th class="l">Equipo</th>':""}${cols.map(th).join("")}</tr></thead><tbody>
   ${list.map((p,i)=>{const T=p.tot,d=avg&&p.gp?p.gp:1,v=k=>avg?f1(T[k]/d):T[k];
     return `<tr>${sortable?`<td class="pos">${i+1}</td>`:""}<td class="l">${p.dorsal!==""&&p.dorsal!=null?`<span class="muted">${esc(p.dorsal)}</span> `:""}<button class="link pl" data-player="${esc(p.id)}">${esc(p.name)}</button></td>${sortable?`<td class="l">${esc(p.team)}</td>`:""}
     <td>${p.gp}</td><td>${p.gp?v("min"):"–"}</td><td><b>${p.gp?v("pts"):"–"}</b></td><td>${p.gp?v("ro"):"–"}</td><td>${p.gp?v("rd"):"–"}</td><td>${p.gp?v("reb"):"–"}</td><td>${p.gp?v("ast"):"–"}</td><td>${p.gp?v("fc"):"–"}</td><td>${p.gp?v("fr"):"–"}</td><td>${p.gp?v("rob"):"–"}</td><td>${p.gp?v("tap"):"–"}</td><td>${p.gp?v("per"):"–"}</td>
-    <td>${pct(T.t2m,T.t2a)}</td><td>${pct(T.t3m,T.t3a)}</td><td>${pct(T.tlm,T.tla)}</td><td><b>${p.gp?v("val"):"–"}</b></td></tr>`}).join("")}
+    <td>${pct(T.t2m,T.t2a)}</td><td>${pct(T.t3m,T.t3a)}</td><td>${pct(T.tlm,T.tla)}</td><td><b>${p.gp?v("val"):"–"}</b></td><td>${T.pmg?pmCell(avg?Math.round(T.pm/T.pmg*10)/10:T.pm):'<span class="muted">–</span>'}</td></tr>`}).join("")}
   </tbody></table>`;
 }
 function teamOptions(sel,group){
@@ -873,7 +881,7 @@ function mergeGames(){
   for(const id in liveApi){const L=liveApi[id], e=sched[id]; if(!e||L.status!=="FINAL"||done.has(id)||L.hs===L.as) continue;
     const box={home:{},away:{}};
     ["home","away"].forEach((side,i)=>{(L.teams?.[i]?.rows||[]).forEach(r=>{ if(!r.min) return; const pid=byFeb[String(r.id)]||("feb-x-"+r.id);
-      box[side][pid]={name:r.name,d:r.d,min:r.min,pts:r.pts,t2m:r.t2[0],t2a:r.t2[1],t3m:r.t3[0],t3a:r.t3[1],tlm:r.tl[0],tla:r.tl[1],ro:r.ro,rd:r.rd,ast:r.ast,rob:r.rob,per:r.per,tap:r.tap,fc:r.fc,fr:r.fr,va:r.va} })});
+      box[side][pid]={name:r.name,d:r.d,min:r.min,pts:r.pts,t2m:r.t2[0],t2a:r.t2[1],t3m:r.t3[0],t3a:r.t3[1],tlm:r.tl[0],tla:r.tl[1],ro:r.ro,rd:r.rd,ast:r.ast,rob:r.rob,per:r.per,tap:r.tap,fc:r.fc,fr:r.fr,va:r.va,...(hasPm(r)?{pm:n(r.pm)}:{})} })});
     prov.push({id:"live-"+id,febId:id,group:e.group,jornada:e.j,date:e.date,home:e.home,away:e.away,hs:L.hs,as:L.as,box,source:"directo",prov:true})}
   games=[...dbGames,...prov];
 }
