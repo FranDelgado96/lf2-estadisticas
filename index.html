@@ -367,6 +367,7 @@ views.jornadas=function(){
     <label class="f" style="flex-direction:row;align-items:center;gap:6px"><span class="sr">Jornada</span><select id="selJ">${Array.from({length:26},(_,i)=>`<option value="${i+1}"${i+1===j?" selected":""}>J${i+1} · ${fmtDate(schedule.A.jornadaDates[i],{day:"numeric",month:"short"})}</option>`).join("")}</select></label>
     <button data-jstep="1" ${j>=26?"disabled":""} aria-label="Jornada siguiente">→</button></div>
   <p class="legend" style="margin-top:-6px">Fin de semana del ${esc(fmtDate(jd,{day:"numeric",month:"long",year:"numeric"}))}. ${live?`<b>${live} partido${live>1?"s":""} en juego ahora.</b> `:""}El directo y el acta oficial se abren en la web de la FEB; las estadísticas de aquí se actualizan cuando se cargan las actas.</p>
+  ${backfillPanel()}
   <div class="grid2">${["A","B"].map(g=>`<section><div class="panel-head"><h3>Grupo ${g}</h3><span class="tag ${g}">${(schedule[g].games.filter(e=>e.j===j)).length} partidos</span></div><div class="mlist">${schedule[g].games.filter(e=>e.j===j).map(e=>matchCard({...e,group:g})).join("")}</div></section>`).join("")}</div>`;
 };
 views.calendario=function(){
@@ -535,6 +536,48 @@ async function saveLive(id,quiet=false){
   }
   try{await db.doc("games/feb-g-"+id).set({group:e.group,jornada:e.j,date:e.date,home:e.home,away:e.away,hs:d.hs,as:d.as,box,source:"directo",febId:id,updated:Date.now()});toast(`Final guardado: ${e.home} ${d.hs}–${d.as} ${e.away}`);render()}
   catch(err){toast("No se pudo guardar: "+err.message)}
+}
+/* ---------- completar desde la FEB con el navegador de la app ---------- */
+const bf={busy:false,msg:""};
+function bfPending(){return schedAll().filter(e=>!games.some(g=>g.febId===e.id&&!g.prov)&&e.status!=="final"&&e.date&&e.time&&Date.now()>new Date(`${e.date}T${e.time}:00`).getTime()+135*60e3)}
+function bfNoPm(){return games.filter(g=>!g.prov&&g.febId&&g.id&&["home","away"].some(s=>Object.values(sideBox(g,s)).some(b=>played(b)&&!hasPm(b))))}
+function backfillPanel(){
+  if(!canWrite||!mcpApi||staticInfo) return "";
+  const p=bfPending().length, q=bfNoPm().length;
+  if(!p&&!q&&!bf.msg) return "";
+  return `<div class="notice" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="margin-right:auto">${bf.busy?esc(bf.msg):`${p?`<b>${p}</b> partido${p>1?"s":""} terminado${p>1?"s":""} sin resultado guardado. `:""}${q?`<b>${q}</b> partido${q>1?"s":""} sin +/-. `:""}${bf.msg?esc(bf.msg):""}`}</span>
+  ${p?`<button class="primary" data-bf="pending" ${bf.busy?"disabled":""}>Traer resultados pendientes</button>`:""}${q?`<button data-bf="pm" ${bf.busy?"disabled":""}>Completar +/-</button>`:""}</div>`;
+}
+async function febRead(id){
+  const r=await mcpApi.callTool("host:claude_browser","preview_start",{url:FEB_URL(id)},{cache:false});
+  const m=toolText(r).match(/tabId\W+([\w-]+)/);
+  for(let i=0;i<3;i++){
+    await new Promise(res=>setTimeout(res,5000));
+    const input={max_chars:80000}; if(m) input.tabId=m[1];
+    const d=parseLive(toolText(await mcpApi.callTool("host:claude_browser","get_page_text",input,{cache:false})));
+    if(d&&d.teams?.length>=2) return d;
+  }
+  return null;
+}
+async function runBackfill(kind){
+  if(bf.busy) return; bf.busy=true; let ok=0, fail=0;
+  const list=kind==="pending"?bfPending().map(e=>e.id):bfNoPm().map(g=>g.febId);
+  try{
+    for(let i=0;i<list.length;i++){
+      const id=list[i]; bf.msg=`Leyendo de la FEB ${i+1} de ${list.length}…`; render();
+      let d=null; try{d=await febRead(id)}catch(err){ if(HARD.includes(err?.code)){bf.msg=liveErr(err);break} }
+      if(!d||d.status!=="FINAL"){fail++;continue}
+      if(kind==="pending"){ sessions[id]={id,data:d}; try{await saveLive(id,true);ok++}finally{delete sessions[id]} }
+      else{
+        const g=games.find(x=>x.febId===id&&!x.prov); if(!g){fail++;continue}
+        const box=JSON.parse(JSON.stringify(g.box||{})); let c=0;
+        ["home","away"].forEach((side,k)=>(d.teams[k]?.rows||[]).forEach(r=>{ if(!hasPm(r)) return; const pid=Object.keys(box[side]||{}).find(x=>n(box[side][x].d)===n(r.d)); if(pid){box[side][pid].pm=n(r.pm);c++} }));
+        if(!c){fail++;continue}
+        const {id:_,...doc}=g; doc.box=box; try{await db.doc("games/"+g.id).set(doc);ok++}catch(e){fail++}
+      }
+    }
+    if(!bf.msg.startsWith("Leyendo")&&bf.msg) {} else bf.msg=`Hecho: ${ok} partido${ok===1?"":"s"} actualizado${ok===1?"":"s"}${fail?`, ${fail} sin datos todavía en la FEB`:""}.`;
+  } finally { bf.busy=false; render() }
 }
 /* ---------- visor de PDF (pdf.js) ---------- */
 const pdfCache={}, pdfBusy={};
@@ -800,6 +843,7 @@ document.addEventListener("click",async e=>{
   if(t.dataset.pdf!=null){const f=actas[ui.match].files[t.dataset.pdf];ui.openPdf=ui.openPdf===f.id?null:f.id;render();return}
   if(t.dataset.dl!=null){const f=actas[ui.match].files[t.dataset.dl];try{const blob=await fetch(fileUrl(f)).then(r=>{if(!r.ok)throw new Error("no disponible");return r.blob()});await downloadsApi.save({filename:f.name,data:blob})}catch(err){if(err?.code!=="cancelled")toast("No se pudo descargar: "+(err.message||err.code))}return}
   if(t.dataset.askrm){ui.confirmFile=t.dataset.askrm;render();return}
+  if(t.dataset.bf){runBackfill(t.dataset.bf);return}
   if(t.dataset.startlive){startLive(t.dataset.startlive);return}
   if(t.dataset.stoplive){await stopLive(t.dataset.stoplive);render();return}
   if(t.dataset.savelive){t.disabled=true;await saveLive(t.dataset.savelive);return}
@@ -887,7 +931,7 @@ function mergeGames(){
 }
 async function pollLive(){
   if(!schedule||!Object.keys(schedule).length) return;
-  const now=Date.now(), ids=schedAll().filter(e=>{ if(gameFor(e)||e.status==="final"||!e.date||!e.time) return false; const s=new Date(`${e.date}T${e.time}:00`).getTime(); return now>=s-10*60e3 && now<=s+14*3600e3 }).map(e=>e.id);
+  const now=Date.now(), ids=schedAll().filter(e=>{ if(gameFor(e)||e.status==="final"||!e.date||!e.time) return false; const s=new Date(`${e.date}T${e.time}:00`).getTime(); return now>=s-10*60e3 && now<=s+7*864e5 }).map(e=>e.id);
   if(!ids.length){ if(Object.keys(liveApi).length){liveApi={};mergeGames();render()} return }
   try{ const r=await fetch(LIVE_URL+"?ids="+ids.join(","),{cache:"no-store"}); if(!r.ok) return; const j=await r.json(); const fresh={}; for(const id in (j.games||{})) fresh[id]={...j.games[id],at:Date.now()}; liveApi=fresh; mergeGames();
     if(!ui.form&&!lb&&!document.querySelector(".pdfview")&&["jornadas","calendario","partido","clasificacion","equipos"].includes(curView)) render();
