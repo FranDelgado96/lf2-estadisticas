@@ -252,9 +252,9 @@ def cmd_fromfeb(a):
     sides, cur, head = [], None, None
     for raw in txt.splitlines():
         m = re.match(r"^\s*(.+?)\s+(\d+)\s+-\s+(\d+)\s+(.+?)\s*$", raw)
-        if not head and m and "ESTADISTICAS" not in raw and not re.search(r"\d+/\d+", raw):
+        if a.src.lower().endswith(".pdf") and not head and m and "ESTADISTICAS" not in raw and not re.search(r"\d+/\d+", raw):
             head = [m.group(1).strip(), int(m.group(2)), m.group(4).strip(), int(m.group(3))]
-        if re.search(r"\bJugador(es)?\b", raw):
+        if re.search(r"\bJugador(es)?\b", raw, re.I):
             cur = []; sides.append(cur); continue
         if cur is None:
             continue
