@@ -106,10 +106,37 @@ def parse_box(path):
              "t2m": int(t2[0]), "t2a": int(t2[1]), "t3m": int(t3[0]), "t3a": int(t3[1]), "tlm": int(tl[0]), "tla": int(tl[1]),
              "ro": int(f[8]), "rd": int(f[9]), "ast": int(f[10]), "rob": int(f[11]), "per": int(f[12]), "tap": int(f[13]),
              "fc": int(f[14]), "fr": int(f[15]), "va": int(f[16])}
+        if len(f) > 17 and re.fullmatch(r"[+-]?\d+", f[17].strip()):
+            b["pm"] = int(f[17])
         rows[f[0]].append(b)
     if not head:
         raise SystemExit("ERROR: falta la línea G# con el marcador")
     return head, rows
+
+
+def match_player(cands, full, dorsal):
+    """Empareja el nombre del acta con la plantilla: nombre completo, 'X. APELLIDOS' (web FEB) o nombre truncado (PDF FEB)."""
+    for r in cands:
+        if norm(r.get("name", "")) == norm(full) or toks(r.get("name", "")) == toks(full):
+            return r["_id"]
+    ft = toks(full); hits = []
+    m = re.match(r"^\s*([A-Za-zÀ-ÿ])\.\s*(.+)$", full)
+    for r in cands:
+        rt = toks(r.get("name", ""))
+        if m:
+            sur = toks(m.group(2)); ini = toks(m.group(1))[0]
+            ok = len(rt) > len(sur) and _ends(r.get("name", ""), m.group(2)) and norm(r.get("name", ""))[:1] == ini
+        else:
+            ok = len(ft) >= 2 and all(rt.count(t) >= ft.count(t) for t in set(ft))
+        if ok:
+            hits.append(r)
+    if len(hits) > 1:
+        hits = [r for r in hits if str(r.get("dorsal", "")) == str(dorsal)] or hits
+    return hits[0]["_id"] if len(hits) == 1 else None
+
+
+def _ends(name, sur):
+    return norm(name).endswith(norm(sur))
 
 
 def title(full):
@@ -147,10 +174,7 @@ def cmd_build(a):
         for b in rows[side]:
             sur, _, name = b["name"].partition(",")
             full = (name.strip() + " " + sur.strip()).strip()
-            pid = None
-            for r in by_team.get(tm, []):
-                if norm(r.get("name", "")) == norm(full) or toks(r.get("name", "")) == toks(full):
-                    pid = r["_id"]; break
+            pid = match_player(by_team.get(tm, []), full, b["d"])
             if not pid:
                 pid = f"auto-{a.id}-{key[0]}{b['d']}"
                 doc = {"name": title(full), "dorsal": b["d"], "pos": "", "team": tm, "source": "acta", "created": int(time.time() * 1000)}
@@ -161,7 +185,7 @@ def cmd_build(a):
                 problems.append(f"jugadora repetida {b['name']}")
             box[key][pid] = {k: v for k, v in b.items() if k != "name"}
     out = os.path.join(a.out, a.id); os.makedirs(out, exist_ok=True)
-    live_rows = lambda side: [{"st": False, "d": b["d"], "name": b["name"], "min": b["min"], "pts": b["pts"], "t2": [b["t2m"], b["t2a"]], "t3": [b["t3m"], b["t3a"]], "tl": [b["tlm"], b["tla"]], "ro": b["ro"], "rd": b["rd"], "ast": b["ast"], "rob": b["rob"], "per": b["per"], "tap": b["tap"], "fc": b["fc"], "fr": b["fr"], "va": b["va"]} for b in rows[side]]
+    live_rows = lambda side: [{"st": False, "d": b["d"], "name": b["name"], "min": b["min"], "pts": b["pts"], "t2": [b["t2m"], b["t2a"]], "t3": [b["t3m"], b["t3a"]], "tl": [b["tlm"], b["tla"]], "ro": b["ro"], "rd": b["rd"], "ast": b["ast"], "rob": b["rob"], "per": b["per"], "tap": b["tap"], "fc": b["fc"], "fr": b["fr"], "va": b["va"], **({"pm": b["pm"]} if "pm" in b else {})} for b in rows[side]]
     live = {"status": "FINAL" if is_final else "En juego", "hs": head["hs"], "as": head["as"], "quarters": [], "teams": [{"rows": live_rows("L")}, {"rows": live_rows("V")}], "at": int(time.time() * 1000), "source": "programado"}
     if problems and is_final:
         is_final = False
@@ -200,20 +224,90 @@ def make_pdf(g, e, names, fn):
           Paragraph(f"Estadística oficial del partido según la FEB (partido {g['febId']}). Documento generado a partir de los datos publicados en feb.es; no sustituye al acta firmada.", S)]
     for side, tname in (("home", g["home"]), ("away", g["away"])):
         bx = g["box"][side]; ids = sorted(bx, key=lambda i: bx[i]["d"])
-        rows = [["D", "Jugadora", "MIN", "PTS", "T2", "T3", "TL", "RO", "RD", "REB", "AST", "ROB", "PER", "TAP", "FC", "FR", "VAL"]]
+        rows = [["D", "Jugadora", "MIN", "PTS", "T2", "T3", "TL", "RO", "RD", "REB", "AST", "ROB", "PER", "TAP", "FC", "FR", "VAL", "+/-"]]
         tot = {k: 0 for k in ["min", "pts", "t2m", "t2a", "t3m", "t3a", "tlm", "tla", "ro", "rd", "ast", "rob", "per", "tap", "fc", "fr", "va"]}
         for i in ids:
             b = bx[i]
             for k in tot: tot[k] += b[k]
-            rows.append([b["d"], names.get(i, i), mmss(b["min"]), b["pts"], f"{b['t2m']}/{b['t2a']}", f"{b['t3m']}/{b['t3a']}", f"{b['tlm']}/{b['tla']}", b["ro"], b["rd"], b["ro"] + b["rd"], b["ast"], b["rob"], b["per"], b["tap"], b["fc"], b["fr"], b["va"]])
-        rows.append(["", "Total", round(tot["min"]), tot["pts"], f"{tot['t2m']}/{tot['t2a']}", f"{tot['t3m']}/{tot['t3a']}", f"{tot['tlm']}/{tot['tla']}", tot["ro"], tot["rd"], tot["ro"] + tot["rd"], tot["ast"], tot["rob"], tot["per"], tot["tap"], tot["fc"], tot["fr"], tot["va"]])
-        t = Table(rows, colWidths=[24, 190] + [40] * 15, repeatRows=1)
+            rows.append([b["d"], names.get(i, i), mmss(b["min"]), b["pts"], f"{b['t2m']}/{b['t2a']}", f"{b['t3m']}/{b['t3a']}", f"{b['tlm']}/{b['tla']}", b["ro"], b["rd"], b["ro"] + b["rd"], b["ast"], b["rob"], b["per"], b["tap"], b["fc"], b["fr"], b["va"], (f"{b['pm']:+d}" if b["pm"] else "0") if "pm" in b else "–"])
+        rows.append(["", "Total", round(tot["min"]), tot["pts"], f"{tot['t2m']}/{tot['t2a']}", f"{tot['t3m']}/{tot['t3a']}", f"{tot['tlm']}/{tot['tla']}", tot["ro"], tot["rd"], tot["ro"] + tot["rd"], tot["ast"], tot["rob"], tot["per"], tot["tap"], tot["fc"], tot["fr"], tot["va"], ""])
+        t = Table(rows, colWidths=[24, 176] + [38] * 16, repeatRows=1)
         t.setStyle(TableStyle([("FONT", (0, 0), (-1, -1), F, 8.5), ("FONT", (0, 0), (-1, 0), FB, 8), ("FONT", (0, -1), (-1, -1), FB, 8.5),
                                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#5d6779")), ("LINEBELOW", (0, 0), (-1, 0), 1, INK), ("LINEBELOW", (0, 1), (-1, -2), 0.3, LINE), ("LINEABOVE", (0, -1), (-1, -1), 1, INK),
                                ("ALIGN", (2, 0), (-1, -1), "RIGHT"), ("ALIGN", (0, 0), (0, -1), "RIGHT"), ("TEXTCOLOR", (3, 1), (3, -1), ACC), ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5), ("TOPPADDING", (0, 0), (-1, -1), 2.5)]))
         el += [Paragraph(tname, T), t]
-    el += [Spacer(1, 8), Paragraph("D: dorsal · T2/T3/TL: anotados/intentados · RO/RD: rebotes ofensivos/defensivos · ROB: robos · PER: pérdidas · TAP: tapones · FC/FR: faltas cometidas/recibidas · VAL: valoración. Fuente: www.feb.es", S)]
+    el += [Spacer(1, 8), Paragraph("D: dorsal · T2/T3/TL: anotados/intentados · RO/RD: rebotes ofensivos/defensivos · ROB: robos · PER: pérdidas · TAP: tapones · FC/FR: faltas cometidas/recibidas · VAL: valoración · +/-: diferencia de puntos con la jugadora en pista. Fuente: www.feb.es", S)]
     doc.build(el)
+
+
+def cmd_fromfeb(a):
+    """Convierte la estadística de la FEB (PDF 'BoxScore' o texto copiado de la web) al formato G#/L|/V| con +/-."""
+    import subprocess
+    if a.src.lower().endswith(".pdf"):
+        txt = subprocess.run(["pdftotext", "-layout", a.src, "-"], capture_output=True, text=True, check=True).stdout
+    else:
+        txt = open(a.src, encoding="utf8").read()
+    e = {x["id"]: x for x in schedule(a.data)}.get(a.id) if a.data else None
+    sides, cur, head = [], None, None
+    for raw in txt.splitlines():
+        m = re.match(r"^\s*(.+?)\s+(\d+)\s+-\s+(\d+)\s+(.+?)\s*$", raw)
+        if a.src.lower().endswith(".pdf") and not head and m and "ESTADISTICAS" not in raw and not re.search(r"\d+/\d+", raw):
+            head = [m.group(1).strip(), int(m.group(2)), m.group(4).strip(), int(m.group(3))]
+        if re.search(r"\bJugador(es)?\b", raw, re.I):
+            cur = []; sides.append(cur); continue
+        if cur is None:
+            continue
+        line = raw.replace("\t", " ").strip()
+        mm = re.match(r"^(\d+)\s+(?:\*\s+)?(.+?)\s+(\d+:\d\d)\s+(.*)$", line) or re.match(r"^\*\s+(\d+)\s+(.+?)\s+(\d+:\d\d)\s+(.*)$", line)
+        if not mm:
+            continue
+        d, name, mn, rest = mm.groups()
+        t = rest.split()
+        shots = [x for x in t if re.fullmatch(r"\d+/\d+", x)]
+        nums = [x for x in t if re.fullmatch(r"-?\d+", x)]
+        if a.src.lower().endswith(".pdf"):
+            # PTS T2 % T3 % TL % O D T AS REC PER TAPc TAPr FC FR VAL +/-
+            pts = nums[0]; t2, t3, tl = shots[:3]; o, dr, _, ast, rob, per, tap, _, fc, fr, va, pm = nums[1:13]
+        else:
+            # PT T2 T3 TC TL RO RD RT AS BR BP TF TC MT FC FR VA +/-
+            pts = nums[0]; t2, t3, _, tl = shots[:4]; o, dr, _, ast, rob, per, tap, _, _, fc, fr, va, pm = nums[1:14]
+        cur.append("|".join([d, name.strip(), mn, pts, t2, t3, tl, o, dr, ast, rob, per, tap, fc, fr, va, pm]))
+    if len(sides) < 2:
+        raise SystemExit("ERROR: no encuentro las dos tablas de jugadoras")
+    if e:
+        tot = [sum(int(x.split("|")[3]) for x in s) for s in sides[:2]]
+        head = [e["home"], tot[0], e["away"], tot[1]] if not head else head
+    out = [f"G#{head[0]}#{head[1]}#{head[2]}#{head[3]}"] + ["L|" + x for x in sides[0]] + ["V|" + x for x in sides[1]]
+    open(a.out, "w", encoding="utf8").write("\n".join(out) + "\n")
+    print("\n".join(out))
+
+
+def cmd_addpm(a):
+    """Añade el +/- de un acta (formato G#/L|/V|) a un partido ya guardado en games/ sin tocar el resto."""
+    g = next((x for x in load_dir(a.data, "games") if x.get("febId") == a.id), None)
+    if not g:
+        raise SystemExit(f"ERROR: el partido {a.id} no está en games/")
+    head, rows = parse_box(a.box)
+    by_team = {}
+    for p in load_dir(a.data, "players"):
+        by_team.setdefault(p.get("team"), []).append(p)
+    box = json.loads(json.dumps(g["box"])); done, miss = 0, []
+    for side, key in (("L", "home"), ("V", "away")):
+        for b in rows[side]:
+            if "pm" not in b:
+                continue
+            pid = match_player(by_team.get(g[key], []), b["name"], b["d"])
+            if pid not in box[key]:
+                pid = next((k for k, v in box[key].items() if v.get("d") == b["d"]), None) if pid is None else pid
+            if pid in box[key]:
+                box[key][pid]["pm"] = b["pm"]; done += 1
+            elif b["min"] > 0:
+                miss.append(b["name"])
+    data = {k: v for k, v in g.items() if k != "_id"}; data["box"] = box
+    w = [{"op": "set", "collection": "games", "doc_id": g["_id"], "data": data}]
+    os.makedirs(os.path.join(a.out, a.id), exist_ok=True)
+    fn = os.path.join(a.out, a.id, "pm_write.json"); json.dump(w, open(fn, "w", encoding="utf8"), ensure_ascii=False)
+    print(json.dumps({"id": a.id, "pm": done, "sin_emparejar": miss, "writes": fn}, ensure_ascii=False))
 
 
 def cmd_acta(a):
@@ -340,9 +434,11 @@ if __name__ == "__main__":
     p = sp.add_parser("targets"); p.add_argument("--data", required=True)
     p = sp.add_parser("build"); p.add_argument("--data", required=True); p.add_argument("--id", required=True); p.add_argument("--box", required=True); p.add_argument("--out", default="lfcout")
     p = sp.add_parser("acta"); p.add_argument("--id", required=True); p.add_argument("--asset", required=True); p.add_argument("--size", required=True); p.add_argument("--name", required=True); p.add_argument("--out", default="lfcout")
+    p = sp.add_parser("fromfeb"); p.add_argument("--src", required=True); p.add_argument("--id", required=True); p.add_argument("--data"); p.add_argument("--out", required=True)
+    p = sp.add_parser("addpm"); p.add_argument("--data", required=True); p.add_argument("--id", required=True); p.add_argument("--box", required=True); p.add_argument("--out", default="lfcout")
     p = sp.add_parser("sched-targets"); p.add_argument("--data", required=True)
     p = sp.add_parser("sched-update"); p.add_argument("--data", required=True); p.add_argument("--fechas", required=True); p.add_argument("--out", default="lfcsched")
     p = sp.add_parser("bundle"); p.add_argument("--data", required=True); p.add_argument("--site", required=True); p.add_argument("--pdf", action="append")
     p = sp.add_parser("site"); p.add_argument("--html", required=True); p.add_argument("--out", required=True)
     a = ap.parse_args()
-    {"targets": cmd_targets, "build": cmd_build, "acta": cmd_acta, "sched-targets": cmd_sched_targets, "sched-update": cmd_sched_update, "bundle": cmd_bundle, "site": cmd_site}[a.cmd](a)
+    {"targets": cmd_targets, "build": cmd_build, "acta": cmd_acta, "sched-targets": cmd_sched_targets, "sched-update": cmd_sched_update, "bundle": cmd_bundle, "site": cmd_site, "fromfeb": cmd_fromfeb, "addpm": cmd_addpm}[a.cmd](a)
